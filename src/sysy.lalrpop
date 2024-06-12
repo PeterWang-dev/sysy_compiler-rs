@@ -8,6 +8,7 @@ match {
   // skip whitespaces
   r"\s*" => {},
   r"//[^\n\r]*[\n\r]*" => {},
+  r"/\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+/" => {},
   // default behavior
   _
 }

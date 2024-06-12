@@ -30,10 +30,12 @@ mod tests {
     use crate::sysy::CompUnitParser;
 
     #[test]
-    fn test_ast() {
+    fn test_ast_main() {
         // Pay attention: new line should not be inserted after `r#"` as it will be included in the string
         let input = r#"int main() {
   // This is a comment, should be ignored
+  /* This is a block comment,
+  should be ignored */
   return 0;
 }"#;
 
