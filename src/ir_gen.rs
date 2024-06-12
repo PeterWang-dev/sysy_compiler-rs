@@ -13,7 +13,7 @@ trait IrGenerator {
 
 impl IrGenerator for CompUnit {
     fn generate(&self, program: &mut Program, scope: Scope) -> Result<(), Error> {
-        self.func_def.generate(program, scope);
+        self.func_def.generate(program, scope)?;
         Ok(())
     }
 }
