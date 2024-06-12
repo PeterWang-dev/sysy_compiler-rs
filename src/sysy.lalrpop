@@ -1,3 +1,5 @@
+use crate::ast::{CompUnit, FuncDef, FuncType, Block, Stmt};
+
 // lalrpop convention
 grammar;
 
@@ -6,28 +8,31 @@ match {
   // skip whitespaces
   r"\s*" => {},
   r"//[^\n\r]*[\n\r]*" => {},
+  r"/\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+/" => {},
   // default behavior
   _
 }
 
-// Define CompUnit which return type is String
-// After parsing, the behavior will be returning the value of FuncDef
-pub CompUnit: String = <func_def: FuncDef> => func_def;
+pub CompUnit: CompUnit = <func_def: FuncDef> => CompUnit { func_def };
 
 // Similar to CompUnit
-FuncDef: String = {
-  <func_type: FuncType> <id: Ident> "(" ")" <block: Block> => {
-    format!("{} {}() {}", func_type, id, block)
+FuncDef: FuncDef = {
+  <func_type: FuncType> <ident: Ident> "(" ")" <block: Block> => {
+    FuncDef {
+      ret_type: func_type,
+      ident,
+      block,
+    }
   }
 }
 
-FuncType: String = "int" => "int".to_string();
+FuncType: FuncType = "int" => FuncType::Int;
 
-Block: String = "{" <stmt: Stmt> "}" => format!("{{ {} }}", stmt);
+Block: Block = "{" <stmt: Stmt> "}" => Block { stmt };
 
-Stmt: String = "return" <num: Number> ";" => format!("return {};", num);
+Stmt: Stmt = "return" <num: Number> ";" => Stmt { num };
 
-Number: String = <num: IntConst> => num.to_string();
+Number: i32 = <val: IntConst> => val;
 
 // If match the pattern, return the matched string
 Ident: String = r"[_a-zA-Z][_a-zA-Z0-9]*" => <>.to_string(); // "<>" refers to the matched string

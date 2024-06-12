@@ -4,6 +4,7 @@
     "vadimcn.vscode-lldb",
     "serayuzgur.crates",
     "tamasfe.even-better-toml",
-    "dustypomerleau.rust-syntax"
+    "dustypomerleau.rust-syntax",
+    "guyutongxue.lalrpop-syntax-highlight"
   ]
 }
