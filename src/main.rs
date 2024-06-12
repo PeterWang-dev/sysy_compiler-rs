@@ -14,7 +14,7 @@ fn main() -> Result<()> {
     // get the command line arguments
     let mut args = args();
     args.next();
-    let mode = args.next().unwrap();
+    let _mode = args.next().unwrap();
     let input = args.next().unwrap();
     args.next();
     let output = args.next().unwrap();
@@ -29,5 +29,8 @@ fn main() -> Result<()> {
     let mut gen = KoopaGenerator::new(Vec::new());
     gen.generate_on(&program).unwrap();
     let text_form_ir = std::str::from_utf8(&gen.writer()).unwrap().to_string();
+
+    // write the output
+    std::fs::write(output, text_form_ir)?;
     Ok(())
 }
