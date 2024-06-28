@@ -10,7 +10,7 @@ use gen::asm as asm_gen;
 use gen::ir as ir_gen;
 
 use koopa::back::KoopaGenerator;
-use std::{env::args, fs::read_to_string, io::Result};
+use std::{env::args, fs::read_to_string, io::Result, str::from_utf8};
 
 fn main() -> Result<()> {
     // get the command line arguments
@@ -29,19 +29,19 @@ fn main() -> Result<()> {
     let program = ir_gen::generate_on(&ast).unwrap();
 
     // generate the output conditionally
-    let text_from_ir = std::str::from_utf8(
-        &(match mode.as_str() {
-            "-koopa" => { // generate Koopa IR using koopa::back
-                let mut gen = KoopaGenerator::new(Vec::new());
-                gen.generate_on(&program).unwrap();
-                gen.writer()
-            } // generate riscv assembly using crate::gen::asm
-            "-riscv" => asm_gen::generate_on(&program).unwrap().into(),
-            _ => panic!("Invalid mode"),
-        }),
-    ) // convert UTF-8 bytes to plain text
-    .unwrap()
-    .to_string();
+    let text_from_ir = match mode.as_str() {
+        "-koopa" => {
+            // generate Koopa IR using koopa::back
+            let mut gen = KoopaGenerator::new(Vec::new());
+            gen.generate_on(&program).unwrap();
+            from_utf8(&gen.writer()).unwrap().to_string()
+        }
+        "-riscv" => {
+            // generate riscv assembly using crate::gen::asm
+            asm_gen::generate_on(&program).unwrap()
+        }
+        _ => panic!("Invalid mode"),
+    };
 
     // write the output
     std::fs::write(output, text_from_ir)?;
