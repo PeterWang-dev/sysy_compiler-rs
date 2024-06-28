@@ -3,7 +3,7 @@ use crate::{ast::*, error::Error};
 use koopa::ir::{self, builder_traits::*, Program, Type};
 
 trait GenerateIr {
-    // implement this trait for all types in the AST
+    // implement this trait for all types in the AST 
     fn generate(&self, program: &mut Program, scope: Scope) -> Result<(), Error>;
 }
 

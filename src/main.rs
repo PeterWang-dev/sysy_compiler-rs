@@ -6,8 +6,8 @@ pub mod ast;
 pub mod error;
 pub mod gen;
 
-pub use gen::asm as asm_gen;
-pub use gen::ir as ir_gen;
+use gen::asm as asm_gen;
+use gen::ir as ir_gen;
 
 use koopa::back::KoopaGenerator;
 use std::{env::args, fs::read_to_string, io::Result};
@@ -30,17 +30,16 @@ fn main() -> Result<()> {
 
     // generate the output conditionally
     let text_from_ir = std::str::from_utf8(
-        // convert UTF-8 bytes to plain text
         &(match mode.as_str() {
-            "-koopa" => {
+            "-koopa" => { // generate Koopa IR using koopa::back
                 let mut gen = KoopaGenerator::new(Vec::new());
                 gen.generate_on(&program).unwrap();
                 gen.writer()
-            }
+            } // generate riscv assembly using crate::gen::asm
             "-riscv" => asm_gen::generate_on(&program).unwrap().into(),
             _ => panic!("Invalid mode"),
         }),
-    )
+    ) // convert UTF-8 bytes to plain text
     .unwrap()
     .to_string();
 
