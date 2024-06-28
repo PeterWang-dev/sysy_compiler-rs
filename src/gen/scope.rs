@@ -1,7 +1,7 @@
 use koopa::ir;
 
-pub enum Scope<'a, 'b> {
+pub enum Scope<'a> {
     Program,
     Function(&'a ir::Function),
-    BasicBlock(&'b ir::Function, &'b ir::BasicBlock),
+    BasicBlock(&'a ir::Function, &'a ir::BasicBlock),
 }
