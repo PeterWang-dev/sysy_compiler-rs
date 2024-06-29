@@ -45,9 +45,9 @@ PrimaryExpr: PrimaryExpr = {
 }
 
 UnaryOp: UnaryOp = {
-  "+" => UnaryOp::Pos,
-  "-" => UnaryOp::Neg,
-  "!" => UnaryOp::Not,
+  "+" => UnaryOp::Positive,
+  "-" => UnaryOp::Negative,
+  "!" => UnaryOp::LogicalNot,
 }
 
 Number: i32 = <val: IntConst> => val;

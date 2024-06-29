@@ -44,9 +44,9 @@ pub enum PrimaryExpr {
 
 #[derive(Debug)]
 pub enum UnaryOp {
-    Pos,
-    Neg,
-    Not,
+    Positive,
+    Negative,
+    LogicalNot,
 }
 
 #[cfg(test)]
@@ -54,7 +54,7 @@ mod tests {
     use crate::sysy::CompUnitParser;
 
     #[test]
-    fn test_ast_main() {
+    fn test_simple() {
         // Pay attention: new line should not be inserted after `r#"` as it will be included in the string
         let input = r#"int main() {
   // This is a comment, should be ignored
