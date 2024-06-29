@@ -1,4 +1,4 @@
-use crate::ast::{CompUnit, FuncDef, FuncType, Block, Stmt};
+use crate::ast::*;
 
 // lalrpop convention
 grammar;
@@ -19,7 +19,7 @@ pub CompUnit: CompUnit = <func_def: FuncDef> => CompUnit { func_def };
 FuncDef: FuncDef = {
   <func_type: FuncType> <ident: Ident> "(" ")" <block: Block> => {
     FuncDef {
-      ret_type: func_type,
+      func_type,
       ident,
       block,
     }
@@ -30,7 +30,25 @@ FuncType: FuncType = "int" => FuncType::Int;
 
 Block: Block = "{" <stmt: Stmt> "}" => Block { stmt };
 
-Stmt: Stmt = "return" <num: Number> ";" => Stmt { num };
+Stmt: Stmt = "return" <expr: Expr> ";" => Stmt { expr };
+
+Expr: Expr = <expr: UnaryExpr> => Expr::UnaryExpr(expr);
+
+UnaryExpr: UnaryExpr = {
+  <expr: PrimaryExpr> => UnaryExpr::PrimaryExpr(expr),
+  <op: UnaryOp> <expr: UnaryExpr> => UnaryExpr::Unary(op, Box::new(expr)),
+}
+
+PrimaryExpr: PrimaryExpr = {
+  "(" <expr: Expr> ")" => PrimaryExpr::Expr(Box::new(expr)),
+  <num: Number> => PrimaryExpr::Number(num),
+}
+
+UnaryOp: UnaryOp = {
+  "+" => UnaryOp::Pos,
+  "-" => UnaryOp::Neg,
+  "!" => UnaryOp::Not,
+}
 
 Number: i32 = <val: IntConst> => val;
 

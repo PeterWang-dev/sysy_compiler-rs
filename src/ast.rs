@@ -5,7 +5,7 @@ pub struct CompUnit {
 
 #[derive(Debug)]
 pub struct FuncDef {
-    pub ret_type: FuncType,
+    pub func_type: FuncType,
     pub ident: String,
     pub block: Block,
 }
@@ -22,7 +22,31 @@ pub struct Block {
 
 #[derive(Debug)]
 pub struct Stmt {
-    pub num: i32,
+    pub expr: Expr,
+}
+
+#[derive(Debug)]
+pub enum Expr {
+    UnaryExpr(UnaryExpr),
+}
+
+#[derive(Debug)]
+pub enum UnaryExpr {
+    PrimaryExpr(PrimaryExpr),
+    Unary(UnaryOp, Box<UnaryExpr>),
+}
+
+#[derive(Debug)]
+pub enum PrimaryExpr {
+    Expr(Box<Expr>),
+    Number(i32),
+}
+
+#[derive(Debug)]
+pub enum UnaryOp {
+    Pos,
+    Neg,
+    Not,
 }
 
 #[cfg(test)]
