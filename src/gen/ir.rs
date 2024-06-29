@@ -106,28 +106,37 @@ impl GenerateIr for UnaryExpr {
     type Output = Value;
 
     fn generate(&self, program: &mut Program, scope: Scope) -> Result<Self::Output, Error> {
-        let &func = match scope {
-            Scope::BasicBlock(f, _) => f,
+        let (&func, &block) = match scope {
+            Scope::BasicBlock(f, b) => (f, b),
             _ => unreachable!("UnaryExpr must be in a BasicBlock scope!"),
         };
 
         match self {
             UnaryExpr::PrimaryExpr(e) => e.generate(program, scope),
             UnaryExpr::Unary(op, e) => {
-                let val = e.generate(program, scope);
-                let dfg = program.func_mut(func).dfg_mut();
-                match op {
+                let val = e.generate(program, scope)?;
+                let func_data = program.func_mut(func);
+                let dfg = func_data.dfg_mut();
+
+                let unary = match op {
                     UnaryOp::Positive => val,
                     UnaryOp::Negative => {
-
                         let zero = dfg.new_value().integer(0);
-                        Ok(dfg.new_value().binary(BinaryOp::Sub, zero, val?))
+                        dfg.new_value().binary(BinaryOp::Sub, zero, val)
                     }
                     UnaryOp::LogicalNot => {
                         let zero = dfg.new_value().integer(0);
-                        Ok(dfg.new_value().binary(BinaryOp::Eq, val?, zero))
+                        dfg.new_value().binary(BinaryOp::Eq, val, zero)
                     }
-                }
+                };
+
+                func_data
+                    .layout_mut()
+                    .bb_mut(block)
+                    .insts_mut()
+                    .extend([unary]);
+
+                Ok(unary)
             }
         }
     }
