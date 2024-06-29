@@ -68,11 +68,17 @@ mod tests {
             format!("{:#?}", ast),
             r#"CompUnit {
     func_def: FuncDef {
-        ret_type: Int,
+        func_type: Int,
         ident: "main",
         block: Block {
             stmt: Stmt {
-                num: 0,
+                expr: UnaryExpr(
+                    PrimaryExpr(
+                        Number(
+                            0,
+                        ),
+                    ),
+                ),
             },
         },
     },
