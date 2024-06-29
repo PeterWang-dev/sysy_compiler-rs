@@ -1,30 +1,36 @@
 use super::scope::Scope;
 use crate::{ast::*, error::Error};
-use koopa::ir::{self, builder_traits::*, Program, Type};
+use koopa::ir::{self, builder_traits::*, BinaryOp, Program, Type, Value};
 
+/// A trait for generating IR from AST nodes.
 trait GenerateIr {
-    // implement this trait for all types in the AST 
-    fn generate(&self, program: &mut Program, scope: Scope) -> Result<(), Error>;
+    type Output;
+
+    fn generate(&self, program: &mut Program, scope: Scope) -> Result<Self::Output, Error>;
 }
 
 impl GenerateIr for CompUnit {
-    fn generate(&self, program: &mut Program, scope: Scope) -> Result<(), Error> {
+    type Output = ();
+
+    fn generate(&self, program: &mut Program, scope: Scope) -> Result<Self::Output, Error> {
         self.func_def.generate(program, scope)?;
         Ok(())
     }
 }
 
 impl GenerateIr for FuncDef {
-    fn generate(&self, program: &mut Program, scope: Scope) -> Result<(), Error> {
+    type Output = ();
+
+    fn generate(&self, program: &mut Program, scope: Scope) -> Result<Self::Output, Error> {
         match scope {
             Scope::Program => (),
-            _ => unreachable!("Function definition must be in program scope!"),
+            _ => unreachable!("Function definition must be in Program scope!"),
         }
 
         let func_info = ir::FunctionData::new(
             format!("@{}", self.ident),
             vec![],
-            match self.ret_type {
+            match self.func_type {
                 FuncType::Int => Type::get_i32(),
             },
         );
@@ -35,12 +41,14 @@ impl GenerateIr for FuncDef {
 }
 
 impl GenerateIr for Block {
-    fn generate(&self, program: &mut Program, scope: Scope) -> Result<(), Error> {
-        let func = match scope {
+    type Output = ();
+
+    fn generate(&self, program: &mut Program, scope: Scope) -> Result<Self::Output, Error> {
+        let &func = match scope {
             Scope::Function(f) => f,
-            _ => unreachable!("Block must be in a function scope!"),
+            _ => unreachable!("Block must be in a Function scope!"),
         };
-        let func_data = program.func_mut(*func);
+        let func_data = program.func_mut(func);
 
         let entry = func_data
             .dfg_mut()
@@ -50,23 +58,27 @@ impl GenerateIr for Block {
         func_data.layout_mut().bbs_mut().extend([entry]);
 
         self.stmt
-            .generate(program, Scope::BasicBlock(func, &entry))?;
+            .generate(program, Scope::BasicBlock(&func, &entry))?;
 
         Ok(())
     }
 }
 
 impl GenerateIr for Stmt {
-    fn generate(&self, program: &mut Program, scope: Scope) -> Result<(), Error> {
-        let (function, block) = match scope {
-            Scope::BasicBlock(t, b) => (t, b),
-            _ => unreachable!("Statement must be in a basic block scope!"),
-        };
-        let func_data = program.func_mut(*function);
+    type Output = ();
 
+    fn generate(&self, program: &mut Program, scope: Scope) -> Result<Self::Output, Error> {
+        let (&func, block) = match scope {
+            Scope::BasicBlock(f, b) => (f, b),
+            _ => unreachable!("Stmt must be in a BasicBlock scope!"),
+        };
+
+        let ret_val = self.expr.generate(program, scope)?;
+
+        let func_data = program.func_mut(func);
         let dfg = func_data.dfg_mut();
-        let res = dfg.new_value().integer(self.num);
-        let ret = dfg.new_value().ret(res.into());
+
+        let ret = dfg.new_value().ret(Some(ret_val));
 
         func_data
             .layout_mut()
@@ -75,6 +87,65 @@ impl GenerateIr for Stmt {
             .extend([ret]);
 
         Ok(())
+    }
+}
+
+impl GenerateIr for Expr {
+    type Output = Value;
+
+    fn generate(&self, program: &mut Program, scope: Scope) -> Result<Self::Output, Error> {
+        // no need to check scope here as Expr can only be in Stmt, and check has been done in Stmt
+        // also scope not used here
+        match self {
+            Expr::UnaryExpr(e) => e.generate(program, scope),
+        }
+    }
+}
+
+impl GenerateIr for UnaryExpr {
+    type Output = Value;
+
+    fn generate(&self, program: &mut Program, scope: Scope) -> Result<Self::Output, Error> {
+        let &func = match scope {
+            Scope::BasicBlock(f, _) => f,
+            _ => unreachable!("UnaryExpr must be in a BasicBlock scope!"),
+        };
+
+        match self {
+            UnaryExpr::PrimaryExpr(e) => e.generate(program, scope),
+            UnaryExpr::Unary(op, e) => {
+                let val = e.generate(program, scope);
+                let dfg = program.func_mut(func).dfg_mut();
+                match op {
+                    UnaryOp::Positive => val,
+                    UnaryOp::Negative => {
+
+                        let zero = dfg.new_value().integer(0);
+                        Ok(dfg.new_value().binary(BinaryOp::Sub, zero, val?))
+                    }
+                    UnaryOp::LogicalNot => {
+                        let zero = dfg.new_value().integer(0);
+                        Ok(dfg.new_value().binary(BinaryOp::Eq, val?, zero))
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl GenerateIr for PrimaryExpr {
+    type Output = Value;
+
+    fn generate(&self, program: &mut Program, scope: Scope) -> Result<Self::Output, Error> {
+        let dfg = match scope {
+            Scope::BasicBlock(f, _) => program.func_mut(*f).dfg_mut(),
+            _ => unreachable!("PrimaryExpr must be in a BasicBlock scope!"),
+        };
+
+        match self {
+            PrimaryExpr::Number(n) => Ok(dfg.new_value().integer(*n)),
+            PrimaryExpr::Expr(e) => e.generate(program, scope),
+        }
     }
 }
 
@@ -90,13 +161,15 @@ mod tests {
     use koopa::back::KoopaGenerator;
 
     #[test]
-    fn test_generate_ir() {
+    fn test_simple() {
         let ast = CompUnit {
             func_def: FuncDef {
                 ident: "main".into(),
-                ret_type: FuncType::Int,
+                func_type: FuncType::Int,
                 block: Block {
-                    stmt: Stmt { num: 0 },
+                    stmt: Stmt {
+                        expr: Expr::UnaryExpr(UnaryExpr::PrimaryExpr(PrimaryExpr::Number(0))),
+                    },
                 },
             },
         };
