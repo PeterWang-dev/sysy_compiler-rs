@@ -28,7 +28,32 @@ FuncDef: FuncDef = {
 
 FuncType: FuncType = "int" => FuncType::Int;
 
-Block: Block = "{" <stmt: Stmt> "}" => Block { stmt };
+Block: Block = "{" <items: (<BlockItem>)*> "}" => Block { items };
+
+BlockItem: BlockItem = {
+  <decl: Decl> => BlockItem::Decl(decl),
+  <stmt: Stmt> => BlockItem::Stmt(stmt),
+}
+
+Decl: Decl = <const_decl: ConstDecl> => Decl::ConstDecl(const_decl);
+
+ConstDecl: ConstDecl = {
+  "const" <btype: BType> <def: ConstDef> <mut defs:("," <ConstDef>)*> ";" => ConstDecl {
+    btype,
+    defs: {
+      defs.insert(0, def);
+      defs
+    }
+  }
+}
+
+BType: BType = "int" => BType::Int;
+
+ConstDef: ConstDef = <ident: Ident> "=" <init_val: ConstInitVal> => ConstDef { ident, init_val };
+
+ConstInitVal: ConstInitVal = <expr: ConstExpr> => ConstInitVal::ConstExpr(expr);
+
+ConstExpr: ConstExpr = <expr: Expr> => ConstExpr::Expr(expr);
 
 Stmt: Stmt = "return" <expr: Expr> ";" => Stmt { expr };
 
@@ -36,8 +61,11 @@ Expr: Expr = <expr: LOrExpr> => Expr::LOrExpr(expr);
 
 PrimaryExpr: PrimaryExpr = {
   "(" <expr: Expr> ")" => PrimaryExpr::Expr(Box::new(expr)),
+  <lval: LVal> => PrimaryExpr::LVal(lval),
   <num: Number> => PrimaryExpr::Number(num),
 }
+
+LVal: LVal = <ident: Ident> => LVal::Ident(ident);
 
 UnaryExpr: UnaryExpr = {
   <expr: PrimaryExpr> => UnaryExpr::PrimaryExpr(expr),

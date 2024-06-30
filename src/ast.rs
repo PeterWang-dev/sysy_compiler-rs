@@ -17,7 +17,45 @@ pub enum FuncType {
 
 #[derive(Debug)]
 pub struct Block {
-    pub stmt: Stmt,
+    pub items: Vec<BlockItem>,
+}
+
+#[derive(Debug)]
+pub enum BlockItem {
+    Decl(Decl),
+    Stmt(Stmt),
+}
+
+#[derive(Debug)]
+pub enum Decl {
+    ConstDecl(ConstDecl),
+}
+
+#[derive(Debug)]
+pub struct ConstDecl {
+    pub btype: BType,
+    pub defs: Vec<ConstDef>,
+}
+
+#[derive(Debug)]
+pub enum BType {
+    Int,
+}
+
+#[derive(Debug)]
+pub struct ConstDef {
+    pub ident: String,
+    pub init_val: ConstInitVal,
+}
+
+#[derive(Debug)]
+pub enum ConstInitVal {
+    ConstExpr(ConstExpr),
+}
+
+#[derive(Debug)]
+pub enum ConstExpr {
+    Expr(Expr),
 }
 
 #[derive(Debug)]
@@ -33,7 +71,13 @@ pub enum Expr {
 #[derive(Debug)]
 pub enum PrimaryExpr {
     Expr(Box<Expr>),
+    LVal(LVal),
     Number(i32),
+}
+
+#[derive(Debug)]
+pub enum LVal {
+    Ident(String),
 }
 
 #[derive(Debug)]
@@ -110,4 +154,20 @@ pub enum LAndExpr {
 pub enum LOrExpr {
     LAndExpr(LAndExpr),
     LOr(Box<LOrExpr>, LAndExpr),
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::sysy::CompUnitParser;
+
+    #[test]
+    #[ignore]
+    fn print_ast() {
+        let input = r#"int main() {
+  const int x = 1 + 1;
+  return x;
+}"#;
+        let ast = CompUnitParser::new().parse(&input).unwrap();
+        println!("{:#?}", ast);
+    }
 }
