@@ -1,3 +1,4 @@
+use koopa::back::LlvmGenerator;
 use lalrpop_util::lalrpop_mod;
 
 lalrpop_mod!(sysy);
@@ -31,7 +32,7 @@ fn main() -> Result<()> {
     // generate the output conditionally
     let text_from_ir = match mode.as_str() {
         "-koopa" => {
-            // generate Koopa IR using koopa::back
+            // generate Koopa IR using koopa::back::KoopaGenerator
             let mut gen = KoopaGenerator::new(Vec::new());
             gen.generate_on(&program).unwrap();
             from_utf8(&gen.writer()).unwrap().to_string()
@@ -39,6 +40,12 @@ fn main() -> Result<()> {
         "-riscv" => {
             // generate riscv assembly using crate::gen::asm
             asm_gen::generate_on(&program).unwrap()
+        }
+        "-llvm" => {
+            // generate llvm IR using koopa::back::LlvmGenerator
+            let mut gen = LlvmGenerator::new(Vec::new());
+            gen.generate_on(&program).unwrap();
+            from_utf8(&gen.writer()).unwrap().to_string()
         }
         _ => panic!("Invalid mode"),
     };

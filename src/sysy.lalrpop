@@ -1,4 +1,4 @@
-use crate::ast::{CompUnit, FuncDef, FuncType, Block, Stmt};
+use crate::ast::*;
 
 // lalrpop convention
 grammar;
@@ -19,7 +19,7 @@ pub CompUnit: CompUnit = <func_def: FuncDef> => CompUnit { func_def };
 FuncDef: FuncDef = {
   <func_type: FuncType> <ident: Ident> "(" ")" <block: Block> => {
     FuncDef {
-      ret_type: func_type,
+      func_type,
       ident,
       block,
     }
@@ -30,7 +30,78 @@ FuncType: FuncType = "int" => FuncType::Int;
 
 Block: Block = "{" <stmt: Stmt> "}" => Block { stmt };
 
-Stmt: Stmt = "return" <num: Number> ";" => Stmt { num };
+Stmt: Stmt = "return" <expr: Expr> ";" => Stmt { expr };
+
+Expr: Expr = <expr: LOrExpr> => Expr::LOrExpr(expr);
+
+PrimaryExpr: PrimaryExpr = {
+  "(" <expr: Expr> ")" => PrimaryExpr::Expr(Box::new(expr)),
+  <num: Number> => PrimaryExpr::Number(num),
+}
+
+UnaryExpr: UnaryExpr = {
+  <expr: PrimaryExpr> => UnaryExpr::PrimaryExpr(expr),
+  <op: UnaryOp> <expr: UnaryExpr> => UnaryExpr::Unary(op, Box::new(expr)),
+}
+
+UnaryOp: UnaryOp = {
+  "+" => UnaryOp::Positive,
+  "-" => UnaryOp::Negative,
+  "!" => UnaryOp::LogicalNot,
+}
+
+MulExpr: MulExpr = {
+  <expr: UnaryExpr> => MulExpr::UnaryExpr(expr),
+  <lhs: MulExpr> <op: MulOp> <rhs: UnaryExpr> => MulExpr::Mul(Box::new(lhs), op, rhs),
+}
+
+MulOp: MulOp = {
+  "*" => MulOp::Multiply,
+  "/" => MulOp::Divide,
+  "%" => MulOp::Module,
+}
+
+AddExpr: AddExpr = {
+  <expr: MulExpr> => AddExpr::MulExpr(expr),
+  <lhs: AddExpr> <op: AddOp> <rhs: MulExpr> => AddExpr::Add(Box::new(lhs), op, rhs),
+}
+
+AddOp: AddOp = {
+  "+" => AddOp::Add,
+  "-" => AddOp::Subtract,
+}
+
+RelExpr: RelExpr = {
+  <expr: AddExpr> => RelExpr::AddExpr(expr),
+  <lhs: RelExpr> <op: RelOp> <rhs: AddExpr> => RelExpr::Rel(Box::new(lhs), op, rhs),
+}
+
+RelOp: RelOp = {
+  "<" => RelOp::Less,
+  "<=" => RelOp::LessEqual,
+  ">" => RelOp::Greater,
+  ">=" => RelOp::GreaterEqual,
+}
+
+EqExpr: EqExpr = {
+  <expr: RelExpr> => EqExpr::RelExpr(expr),
+  <lhs: EqExpr> <op: EqOp> <rhs: RelExpr> => EqExpr::Eq(Box::new(lhs), op, rhs),
+}
+
+EqOp: EqOp = {
+  "==" => EqOp::Equal,
+  "!=" => EqOp::NotEqual,
+}
+
+LAndExpr: LAndExpr = {
+  <expr: EqExpr> => LAndExpr::EqExpr(expr),
+  <lhs: LAndExpr> "&&" <rhs: EqExpr> => LAndExpr::LAnd(Box::new(lhs), rhs),
+}
+
+LOrExpr: LOrExpr = {
+  <expr: LAndExpr> => LOrExpr::LAndExpr(expr),
+  <lhs: LOrExpr> "||" <rhs: LAndExpr> => LOrExpr::LOr(Box::new(lhs), rhs),
+}
 
 Number: i32 = <val: IntConst> => val;
 

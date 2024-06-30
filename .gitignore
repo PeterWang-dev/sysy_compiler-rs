@@ -15,4 +15,6 @@ Cargo.lock
 
 # Program generated files
 *.koopa
+*.ll
 *.S
+*.out

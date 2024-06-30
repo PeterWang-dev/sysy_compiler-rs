@@ -5,7 +5,7 @@ pub struct CompUnit {
 
 #[derive(Debug)]
 pub struct FuncDef {
-    pub ret_type: FuncType,
+    pub func_type: FuncType,
     pub ident: String,
     pub block: Block,
 }
@@ -22,37 +22,92 @@ pub struct Block {
 
 #[derive(Debug)]
 pub struct Stmt {
-    pub num: i32,
+    pub expr: Expr,
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::sysy::CompUnitParser;
+#[derive(Debug)]
+pub enum Expr {
+    LOrExpr(LOrExpr),
+}
 
-    #[test]
-    fn test_ast_main() {
-        // Pay attention: new line should not be inserted after `r#"` as it will be included in the string
-        let input = r#"int main() {
-  // This is a comment, should be ignored
-  /* This is a block comment,
-  should be ignored */
-  return 0;
-}"#;
+#[derive(Debug)]
+pub enum PrimaryExpr {
+    Expr(Box<Expr>),
+    Number(i32),
+}
 
-        let ast = CompUnitParser::new().parse(input).unwrap();
-        assert_eq!(
-            format!("{:#?}", ast),
-            r#"CompUnit {
-    func_def: FuncDef {
-        ret_type: Int,
-        ident: "main",
-        block: Block {
-            stmt: Stmt {
-                num: 0,
-            },
-        },
-    },
-}"#
-        );
-    }
+#[derive(Debug)]
+pub enum UnaryExpr {
+    PrimaryExpr(PrimaryExpr),
+    Unary(UnaryOp, Box<UnaryExpr>),
+}
+
+#[derive(Debug)]
+pub enum UnaryOp {
+    Positive,
+    Negative,
+    LogicalNot,
+}
+
+#[derive(Debug)]
+pub enum MulExpr {
+    UnaryExpr(UnaryExpr),
+    Mul(Box<MulExpr>, MulOp, UnaryExpr),
+}
+
+#[derive(Debug)]
+pub enum MulOp {
+    Multiply,
+    Divide,
+    Module,
+}
+
+#[derive(Debug)]
+pub enum AddExpr {
+    MulExpr(MulExpr),
+    Add(Box<AddExpr>, AddOp, MulExpr),
+}
+
+#[derive(Debug)]
+pub enum AddOp {
+    Add,
+    Subtract,
+}
+
+#[derive(Debug)]
+pub enum RelExpr {
+    AddExpr(AddExpr),
+    Rel(Box<RelExpr>, RelOp, AddExpr),
+}
+
+#[derive(Debug)]
+pub enum RelOp {
+    Less,
+    LessEqual,
+    Greater,
+    GreaterEqual,
+}
+
+#[derive(Debug)]
+pub enum EqExpr {
+    RelExpr(RelExpr),
+    Eq(Box<EqExpr>, EqOp, RelExpr),
+}
+
+#[derive(Debug)]
+pub enum EqOp {
+    Equal,
+    NotEqual,
+}
+
+#[derive(Debug)]
+pub enum LAndExpr {
+    EqExpr(EqExpr),
+    LAnd(Box<LAndExpr>, EqExpr),
+}
+
+#[derive(Debug)]
+pub enum LOrExpr {
+    LAndExpr(LAndExpr),
+    LOr(Box<LOrExpr>, LAndExpr),
 }
