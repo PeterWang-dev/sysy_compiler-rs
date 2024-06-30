@@ -241,6 +241,14 @@ mod tests {
     use crate::sysy::CompUnitParser;
     use koopa::back::KoopaGenerator;
 
+    fn generate_ir_from_input(input: &str) -> String {
+        let ast = CompUnitParser::new().parse(input).unwrap();
+        let program = generate_on(&ast).unwrap();
+        let mut gen = KoopaGenerator::new(Vec::new());
+        gen.generate_on(&program).unwrap();
+        std::str::from_utf8(&gen.writer()).unwrap().to_string()
+    }
+
     #[test]
     fn test_simple() {
         let input = r#"int main() {
@@ -249,13 +257,7 @@ mod tests {
   should be ignored */
   return 0;
 }"#;
-
-        let ast = CompUnitParser::new().parse(input).unwrap();
-        let program = generate_on(&ast).unwrap();
-        let mut gen = KoopaGenerator::new(Vec::new());
-        gen.generate_on(&program).unwrap();
-        let text_form_ir = std::str::from_utf8(&gen.writer()).unwrap().to_string();
-
+        let text_form_ir = generate_ir_from_input(input);
         assert_eq!(
             text_form_ir,
             // Pay attention: new line should not be inserted after `r#"` as it will be included in the string
@@ -272,13 +274,7 @@ mod tests {
         let input = r#"int main() {
   return +(- -!6);  // looks like a smiley face
 }"#;
-
-        let ast = CompUnitParser::new().parse(input).unwrap();
-        let program = generate_on(&ast).unwrap();
-        let mut gen = KoopaGenerator::new(Vec::new());
-        gen.generate_on(&program).unwrap();
-        let text_form_ir = std::str::from_utf8(&gen.writer()).unwrap().to_string();
-
+        let text_form_ir = generate_ir_from_input(input);
         assert_eq!(
             text_form_ir,
             r#"fun @main(): i32 {
@@ -297,13 +293,7 @@ mod tests {
         let input = r#"int main() {
   return 1 + 2 * 3;
 }"#;
-
-        let ast = CompUnitParser::new().parse(input).unwrap();
-        let program = generate_on(&ast).unwrap();
-        let mut gen = KoopaGenerator::new(Vec::new());
-        gen.generate_on(&program).unwrap();
-        let text_form_ir = std::str::from_utf8(&gen.writer()).unwrap().to_string();
-
+        let text_form_ir = generate_ir_from_input(input);
         assert_eq!(
             text_form_ir,
             r#"fun @main(): i32 {
@@ -311,6 +301,24 @@ mod tests {
   %0 = mul 2, 3
   %1 = add 1, %0
   ret %1
+}
+"#
+        );
+    }
+
+    #[test]
+    fn test_comparation_expr() {
+        let input = r#"int main() {
+  return 1 <= 2;
+}
+"#;
+        let text_form_ir = generate_ir_from_input(input);
+        assert_eq!(
+            text_form_ir,
+            r#"fun @main(): i32 {
+%entry:
+  %0 = le 1, 2
+  ret %0
 }
 "#
         );
