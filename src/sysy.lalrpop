@@ -77,7 +77,9 @@ InitVal: InitVal = <expr: Expr> => InitVal::Expr(expr);
 
 Stmt: Stmt = {
   <lval: LVal> "=" <expr: Expr> ";" => Stmt::Assign(lval, expr),
-  "return" <expr: Expr> ";" => Stmt::Return(expr),
+  <expr: Expr?> ";" => Stmt::Expr(expr),
+  <block: Block> => Stmt::Block(block),
+  "return" <expr: Expr?> ";" => Stmt::Return(expr),
 }
 
 Expr: Expr = <expr: LOrExpr> => Expr::LOrExpr(expr);

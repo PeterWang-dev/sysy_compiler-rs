@@ -86,7 +86,8 @@ impl GenerateIr for Block {
     fn generate(&self, generator: &mut IrGenerator, scope: Scope) -> Result<Self::Output, Error> {
         let func = match scope {
             Scope::Function(f) => f,
-            _ => unreachable!("Block must be in a Function scope!"),
+            Scope::BasicBlock(f, _) => f,
+            _ => unreachable!("Block must be in a Function or BasicBlock scope!"),
         };
         let func_data = generator.program_mut().func_mut(func);
 
@@ -302,19 +303,43 @@ impl GenerateIr for Stmt {
 
                 Ok(())
             }
+            Stmt::Expr(e) => match e {
+                Some(e) => {
+                    let _ = e.generate(generator, scope)?;
+                    Ok(())
+                }
+                None => Ok(()),
+            },
+            Stmt::Block(b) => b.generate(generator, scope),
             Stmt::Return(e) => {
-                let ret_val = e.generate(generator, scope)?;
+                match e {
+                    Some(e) => {
+                        let ret_val = e.generate(generator, scope)?;
 
-                let func_data = generator.program_mut().func_mut(func);
-                let dfg = func_data.dfg_mut();
+                        let func_data = generator.program_mut().func_mut(func);
+                        let dfg = func_data.dfg_mut();
 
-                let ret = dfg.new_value().ret(Some(ret_val));
+                        let ret = dfg.new_value().ret(Some(ret_val));
 
-                func_data
-                    .layout_mut()
-                    .bb_mut(block)
-                    .insts_mut()
-                    .extend([ret]);
+                        func_data
+                            .layout_mut()
+                            .bb_mut(block)
+                            .insts_mut()
+                            .extend([ret]);
+                    }
+                    None => {
+                        let func_data = generator.program_mut().func_mut(func);
+                        let dfg = func_data.dfg_mut();
+
+                        let ret = dfg.new_value().ret(None);
+
+                        func_data
+                            .layout_mut()
+                            .bb_mut(block)
+                            .insts_mut()
+                            .extend([ret]);
+                    }
+                }
 
                 Ok(())
             }
