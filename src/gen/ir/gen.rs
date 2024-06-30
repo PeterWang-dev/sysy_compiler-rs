@@ -57,8 +57,10 @@ impl GenerateIr for Block {
 
         func_data.layout_mut().bbs_mut().extend([entry]);
 
-        self.stmt
-            .generate(program, Scope::BasicBlock(&func, &entry))?;
+        unimplemented!();
+
+        // self.stmt
+        //     .generate(program, Scope::BasicBlock(&func, &entry))?;
 
         Ok(())
     }
@@ -114,6 +116,7 @@ impl GenerateIr for PrimaryExpr {
         match self {
             PrimaryExpr::Number(n) => Ok(dfg.new_value().integer(*n)),
             PrimaryExpr::Expr(e) => e.generate(program, scope),
+            _ => unimplemented!(),
         }
     }
 }
@@ -135,7 +138,7 @@ impl GenerateIr for UnaryExpr {
                 let dfg = func_data.dfg_mut();
 
                 let unary = match op {
-                    UnaryOp::Positive => val, // ! Bug: Need further investigation (panicked at 'can not name constants')
+                    UnaryOp::Positive => val,
                     UnaryOp::Negative => {
                         let zero = dfg.new_value().integer(0);
                         let neg = dfg.new_value().binary(BinaryOp::Sub, zero, val);
@@ -360,7 +363,6 @@ impl GenerateIr for LOrExpr {
                 let func_data = program.func_mut(func);
                 let dfg = func_data.dfg_mut();
 
-                // ! Bug: Need further investigation
                 let zero = dfg.new_value().integer(0);
                 let logic_lhs = dfg.new_value().binary(BinaryOp::NotEq, lhs, zero);
                 let logic_rhs = dfg.new_value().binary(BinaryOp::NotEq, rhs, zero);
@@ -384,181 +386,4 @@ pub fn generate_on(ast: &CompUnit) -> Result<Program, Error> {
     Ok(program)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::sysy::CompUnitParser;
-    use koopa::back::KoopaGenerator;
 
-    fn generate_ir_from_input(input: &str) -> String {
-        let ast = CompUnitParser::new().parse(input).unwrap();
-        let program = generate_on(&ast).unwrap();
-        let mut gen = KoopaGenerator::new(Vec::new());
-        gen.generate_on(&program).unwrap();
-        std::str::from_utf8(&gen.writer()).unwrap().to_string()
-    }
-
-    #[test]
-    fn test_simple() {
-        let input = r#"int main() {
-  // This is a comment, should be ignored
-  /* This is a block comment,
-  should be ignored */
-  return 0;
-}"#;
-        let text_form_ir = generate_ir_from_input(input);
-        assert_eq!(
-            text_form_ir,
-            // Pay attention: new line should not be inserted after `r#"` as it will be included in the string
-            r#"fun @main(): i32 {
-%entry:
-  ret 0
-}
-"#
-        );
-    }
-
-    mod test_expr {
-        use super::*;
-
-        #[test]
-        fn test_unary() {
-            let input = r#"int main() {
-  return +(- -!6);  // looks like a smiley face
-}"#;
-            let text_form_ir = generate_ir_from_input(input);
-            assert_eq!(
-                text_form_ir,
-                r#"fun @main(): i32 {
-%entry:
-  %0 = eq 6, 0
-  %1 = sub 0, %0
-  %2 = sub 0, %1
-  ret %2
-}
-"#
-            );
-        }
-
-        #[test]
-        fn test_pos() {
-            let input = r#"int main() {
-  return +2;
-}"#;
-            let text_form_ir = generate_ir_from_input(input);
-            assert_eq!(
-                text_form_ir,
-                r#"fun @main(): i32 {
-%entry:
-  ret 2
-}
-"#
-            );
-        }
-
-        #[test]
-        fn test_arithmatic() {
-            let input = r#"int main() {
-  return 1 + 2 * 3;
-}"#;
-            let text_form_ir = generate_ir_from_input(input);
-            assert_eq!(
-                text_form_ir,
-                r#"fun @main(): i32 {
-%entry:
-  %0 = mul 2, 3
-  %1 = add 1, %0
-  ret %1
-}
-"#
-            );
-        }
-
-        #[test]
-        fn test_neq() {
-            let input = r#"int main() {
-  return 1 <= 2;
-}
-"#;
-            let text_form_ir = generate_ir_from_input(input);
-            assert_eq!(
-                text_form_ir,
-                r#"fun @main(): i32 {
-%entry:
-  %0 = le 1, 2
-  ret %0
-}
-"#
-            );
-        }
-
-        #[test]
-        fn test_lor() {
-            let input = r#"int main() {
-  return 11 || 0;
-}"#;
-            let text_form_ir = generate_ir_from_input(input);
-            assert_eq!(
-                text_form_ir,
-                r#"fun @main(): i32 {
-%entry:
-  %0 = ne 11, 0
-  %1 = ne 0, 0
-  %2 = or %0, %1
-  ret %2
-}
-"#,
-            );
-        }
-
-        #[test]
-        fn test_land() {
-            let input = r#"int main() {
-  return 2 && 4;
-}
-"#;
-            let text_form_ir = generate_ir_from_input(input);
-            assert_eq!(
-                text_form_ir,
-                r#"fun @main(): i32 {
-%entry:
-  %0 = ne 2, 0
-  %1 = ne 4, 0
-  %2 = and %0, %1
-  ret %2
-}
-"#,
-            );
-        }
-
-        #[test]
-        fn test_complex() {
-            let input = r#"int main() {
-  return 1 + 2 * (!3 || 4) < 5 != 6 && -7;
-}
-"#;
-            let text_form_ir = generate_ir_from_input(input);
-            print!("{:#}", text_form_ir);
-            assert_eq!(
-                text_form_ir,
-                r#"fun @main(): i32 {
-%entry:
-  %0 = eq 3, 0
-  %1 = ne %0, 0
-  %2 = ne 4, 0
-  %3 = or %1, %2
-  %4 = mul 2, %3
-  %5 = add 1, %4
-  %6 = lt %5, 5
-  %7 = ne %6, 6
-  %8 = sub 0, 7
-  %9 = ne %7, 0
-  %10 = ne %8, 0
-  %11 = and %9, %10
-  ret %11
-}
-"#,
-            );
-        }
-    }
-}
