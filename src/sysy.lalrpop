@@ -28,16 +28,67 @@ FuncDef: FuncDef = {
 
 FuncType: FuncType = "int" => FuncType::Int;
 
-Block: Block = "{" <stmt: Stmt> "}" => Block { stmt };
+Block: Block = "{" <items: (<BlockItem>)*> "}" => Block { items };
 
-Stmt: Stmt = "return" <expr: Expr> ";" => Stmt { expr };
+BlockItem: BlockItem = {
+  <decl: Decl> => BlockItem::Decl(decl),
+  <stmt: Stmt> => BlockItem::Stmt(stmt),
+}
+
+Decl: Decl = {
+  <const_decl: ConstDecl> => Decl::ConstDecl(const_decl),
+  <var_decl: VarDecl> => Decl::VarDecl(var_decl),
+}
+
+ConstDecl: ConstDecl = {
+  "const" <ty: BType> <def: ConstDef> <mut defs:("," <ConstDef>)*> ";" => ConstDecl {
+    ty,
+    defs: {
+      defs.insert(0, def);
+      defs
+    }
+  }
+}
+
+BType: BType = "int" => BType::Int;
+
+ConstDef: ConstDef = <ident: Ident> "=" <init_val: ConstInitVal> => ConstDef { ident, init_val };
+
+ConstInitVal: ConstInitVal = <expr: ConstExpr> => ConstInitVal::ConstExpr(expr);
+
+ConstExpr: ConstExpr = <expr: Expr> => ConstExpr::Expr(expr);
+
+VarDecl: VarDecl = {
+  <ty: BType> <var_def: VarDef> <mut defs:("," <VarDef>)*> ";" => VarDecl {
+    ty,
+    defs: {
+      defs.insert(0, var_def);
+      defs
+    }
+  }
+}
+
+VarDef: VarDef = {
+  <ident: Ident> => VarDef::Ident(ident),
+  <ident: Ident> "=" <init_val: InitVal> => VarDef::Init(ident, init_val),
+}
+
+InitVal: InitVal = <expr: Expr> => InitVal::Expr(expr);
+
+Stmt: Stmt = {
+  <lval: LVal> "=" <expr: Expr> ";" => Stmt::Assign(lval, expr),
+  "return" <expr: Expr> ";" => Stmt::Return(expr),
+}
 
 Expr: Expr = <expr: LOrExpr> => Expr::LOrExpr(expr);
 
 PrimaryExpr: PrimaryExpr = {
   "(" <expr: Expr> ")" => PrimaryExpr::Expr(Box::new(expr)),
+  <lval: LVal> => PrimaryExpr::LVal(lval),
   <num: Number> => PrimaryExpr::Number(num),
 }
+
+LVal: LVal = <ident: Ident> => LVal::Ident(ident);
 
 UnaryExpr: UnaryExpr = {
   <expr: PrimaryExpr> => UnaryExpr::PrimaryExpr(expr),

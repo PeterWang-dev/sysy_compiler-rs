@@ -1,7 +1,9 @@
 use koopa::ir;
 
-pub enum Scope<'a> {
+#[derive(Clone)]
+pub enum Scope {
     Program,
-    Function(&'a ir::Function),
-    BasicBlock(&'a ir::Function, &'a ir::BasicBlock),
+    Function(ir::Function),
+    BasicBlock(ir::Function, ir::BasicBlock),
+    Decl(ir::Function, ir::BasicBlock, ir::Type),
 }
