@@ -1,13 +1,13 @@
-use super::symbol_table::SymbolTable;
+use super::symbol_table::{SymbolTable, SymbolValue};
 use crate::{ast::*, error::Error};
 
-pub trait Evaluate {
+pub trait EvaluateConstant {
     type Output;
 
     fn eval(&self, sym_table: &SymbolTable) -> Result<Self::Output, Error>;
 }
 
-impl Evaluate for ConstExpr {
+impl EvaluateConstant for ConstExpr {
     type Output = i32;
 
     fn eval(&self, sym_table: &SymbolTable) -> Result<Self::Output, Error> {
@@ -17,7 +17,7 @@ impl Evaluate for ConstExpr {
     }
 }
 
-impl Evaluate for Expr {
+impl EvaluateConstant for Expr {
     type Output = i32;
 
     fn eval(&self, sym_table: &SymbolTable) -> Result<Self::Output, Error> {
@@ -27,39 +27,49 @@ impl Evaluate for Expr {
     }
 }
 
-impl Evaluate for LOrExpr {
+impl EvaluateConstant for LOrExpr {
     type Output = i32;
 
     fn eval(&self, sym_table: &SymbolTable) -> Result<Self::Output, Error> {
         match self {
             LOrExpr::LAndExpr(e) => e.eval(sym_table),
             LOrExpr::LOr(e1, e2) => {
-                let v1 = e1.eval(sym_table)?;
-                let res = if v1 != 0 { v1 } else { e2.eval(sym_table)? };
+                let logic_v1 = e1.eval(sym_table)? != 0;
+                let res = if logic_v1 == true {
+                    logic_v1
+                } else {
+                    let logic_v2 = e2.eval(sym_table)? != 0;
+                    logic_v2
+                };
 
-                Ok(res)
+                Ok(res as i32)
             }
         }
     }
 }
 
-impl Evaluate for LAndExpr {
+impl EvaluateConstant for LAndExpr {
     type Output = i32;
 
     fn eval(&self, sym_table: &SymbolTable) -> Result<Self::Output, Error> {
         match self {
             LAndExpr::EqExpr(e) => e.eval(sym_table),
             LAndExpr::LAnd(e1, e2) => {
-                let v1 = e1.eval(sym_table)?;
-                let res = if v1 == 0 { v1 } else { e2.eval(sym_table)? };
+                let logic_v1 = e1.eval(sym_table)? != 0;
+                let res = if logic_v1 == false {
+                    logic_v1
+                } else {
+                    let logic_v2 = e2.eval(sym_table)? != 0;
+                    logic_v2
+                };
 
-                Ok(res)
+                Ok(res as i32)
             }
         }
     }
 }
 
-impl Evaluate for EqExpr {
+impl EvaluateConstant for EqExpr {
     type Output = i32;
 
     fn eval(&self, sym_table: &SymbolTable) -> Result<Self::Output, Error> {
@@ -79,7 +89,7 @@ impl Evaluate for EqExpr {
     }
 }
 
-impl Evaluate for RelExpr {
+impl EvaluateConstant for RelExpr {
     type Output = i32;
 
     fn eval(&self, sym_table: &SymbolTable) -> Result<Self::Output, Error> {
@@ -101,7 +111,7 @@ impl Evaluate for RelExpr {
     }
 }
 
-impl Evaluate for AddExpr {
+impl EvaluateConstant for AddExpr {
     type Output = i32;
 
     fn eval(&self, sym_table: &SymbolTable) -> Result<Self::Output, Error> {
@@ -121,7 +131,7 @@ impl Evaluate for AddExpr {
     }
 }
 
-impl Evaluate for MulExpr {
+impl EvaluateConstant for MulExpr {
     type Output = i32;
 
     fn eval(&self, sym_table: &SymbolTable) -> Result<Self::Output, Error> {
@@ -142,7 +152,7 @@ impl Evaluate for MulExpr {
     }
 }
 
-impl Evaluate for UnaryExpr {
+impl EvaluateConstant for UnaryExpr {
     type Output = i32;
 
     fn eval(&self, sym_table: &SymbolTable) -> Result<Self::Output, Error> {
@@ -162,7 +172,7 @@ impl Evaluate for UnaryExpr {
     }
 }
 
-impl Evaluate for PrimaryExpr {
+impl EvaluateConstant for PrimaryExpr {
     type Output = i32;
 
     fn eval(&self, sym_table: &SymbolTable) -> Result<Self::Output, Error> {
@@ -176,7 +186,7 @@ impl Evaluate for PrimaryExpr {
     }
 }
 
-impl Evaluate for LVal {
+impl EvaluateConstant for LVal {
     type Output = i32;
 
     fn eval(&self, sym_table: &SymbolTable) -> Result<Self::Output, Error> {
@@ -184,8 +194,12 @@ impl Evaluate for LVal {
             LVal::Ident(s) => {
                 let v = sym_table
                     .get(s)
-                    .ok_or(Error::SemanticError(format!("Undefined variable: {}", s)))?;
-                Ok(*v)
+                    .ok_or(Error::SemanticError(format!("Undefined symbol: {}", s)))?;
+
+                match v {
+                    SymbolValue::Const(n) => Ok(*n),
+                    _ => Err(Error::SemanticError(format!("Not a constant: {}", s))),
+                }
             }
         }
     }

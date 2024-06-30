@@ -1,7 +1,15 @@
+use crate::error::Error;
+use koopa::ir::Value;
 use std::collections::HashMap;
 
+#[derive(Clone, Copy)]
+pub enum SymbolValue {
+    Const(i32),
+    Var(Value),
+}
+
 pub struct SymbolTable {
-    table: HashMap<String, i32>,
+    table: HashMap<String, SymbolValue>,
 }
 
 impl SymbolTable {
@@ -11,11 +19,16 @@ impl SymbolTable {
         }
     }
 
-    pub fn insert(&mut self, name: String, value: i32) {
+    pub fn try_insert(&mut self, name: String, value: SymbolValue) -> Result<(), Error> {
+        if self.table.contains_key(&name) {
+            return Err(Error::SemanticError(format!("{} already exists", name)));
+        }
+
         self.table.insert(name, value);
+        Ok(())
     }
 
-    pub fn get(&self, name: &str) -> Option<&i32> {
+    pub fn get(&self, name: &str) -> Option<&SymbolValue> {
         self.table.get(name)
     }
 }

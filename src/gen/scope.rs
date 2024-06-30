@@ -5,5 +5,5 @@ pub enum Scope {
     Program,
     Function(ir::Function),
     BasicBlock(ir::Function, ir::BasicBlock),
-    Decl(ir::Type),
+    Decl(ir::Function, ir::BasicBlock, ir::Type),
 }
