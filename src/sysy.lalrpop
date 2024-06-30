@@ -32,7 +32,7 @@ Block: Block = "{" <stmt: Stmt> "}" => Block { stmt };
 
 Stmt: Stmt = "return" <expr: Expr> ";" => Stmt { expr };
 
-Expr: Expr = <expr: AddExpr> => Expr::AddExpr(expr);
+Expr: Expr = <expr: LOrExpr> => Expr::LOrExpr(expr);
 
 PrimaryExpr: PrimaryExpr = {
   "(" <expr: Expr> ")" => PrimaryExpr::Expr(Box::new(expr)),
@@ -77,9 +77,9 @@ RelExpr: RelExpr = {
 }
 
 RelOp: RelOp = {
-  "<" => RelOp::LessThan,
+  "<" => RelOp::Less,
   "<=" => RelOp::LessEqual,
-  ">" => RelOp::GreaterThan,
+  ">" => RelOp::Greater,
   ">=" => RelOp::GreaterEqual,
 }
 

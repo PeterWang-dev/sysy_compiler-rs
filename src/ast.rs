@@ -27,7 +27,7 @@ pub struct Stmt {
 
 #[derive(Debug)]
 pub enum Expr {
-    AddExpr(AddExpr),
+    LOrExpr(LOrExpr),
 }
 
 #[derive(Debug)]
@@ -52,7 +52,7 @@ pub enum UnaryOp {
 #[derive(Debug)]
 pub enum MulExpr {
     UnaryExpr(UnaryExpr),
-    Mul(Box<MulExpr>,MulOp, UnaryExpr),
+    Mul(Box<MulExpr>, MulOp, UnaryExpr),
 }
 
 #[derive(Debug)]
@@ -82,9 +82,9 @@ pub enum RelExpr {
 
 #[derive(Debug)]
 pub enum RelOp {
-    LessThan,
+    Less,
     LessEqual,
-    GreaterThan,
+    Greater,
     GreaterEqual,
 }
 
