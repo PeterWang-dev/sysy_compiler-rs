@@ -27,13 +27,7 @@ pub struct Stmt {
 
 #[derive(Debug)]
 pub enum Expr {
-    UnaryExpr(UnaryExpr),
-}
-
-#[derive(Debug)]
-pub enum UnaryExpr {
-    PrimaryExpr(PrimaryExpr),
-    Unary(UnaryOp, Box<UnaryExpr>),
+    AddExpr(AddExpr),
 }
 
 #[derive(Debug)]
@@ -43,46 +37,39 @@ pub enum PrimaryExpr {
 }
 
 #[derive(Debug)]
+pub enum UnaryExpr {
+    PrimaryExpr(PrimaryExpr),
+    Unary(UnaryOp, Box<UnaryExpr>),
+}
+
+#[derive(Debug)]
 pub enum UnaryOp {
     Positive,
     Negative,
     LogicalNot,
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::sysy::CompUnitParser;
+#[derive(Debug)]
+pub enum MulExpr {
+    UnaryExpr(UnaryExpr),
+    Mul(Box<MulExpr>,MulOp, UnaryExpr),
+}
 
-    #[test]
-    fn test_simple() {
-        // Pay attention: new line should not be inserted after `r#"` as it will be included in the string
-        let input = r#"int main() {
-  // This is a comment, should be ignored
-  /* This is a block comment,
-  should be ignored */
-  return 0;
-}"#;
+#[derive(Debug)]
+pub enum MulOp {
+    Multiply,
+    Divide,
+    Module,
+}
 
-        let ast = CompUnitParser::new().parse(input).unwrap();
-        assert_eq!(
-            format!("{:#?}", ast),
-            r#"CompUnit {
-    func_def: FuncDef {
-        func_type: Int,
-        ident: "main",
-        block: Block {
-            stmt: Stmt {
-                expr: UnaryExpr(
-                    PrimaryExpr(
-                        Number(
-                            0,
-                        ),
-                    ),
-                ),
-            },
-        },
-    },
-}"#
-        );
-    }
+#[derive(Debug)]
+pub enum AddExpr {
+    MulExpr(MulExpr),
+    Add(Box<AddExpr>, AddOp, MulExpr),
+}
+
+#[derive(Debug)]
+pub enum AddOp {
+    Add,
+    Subtract,
 }

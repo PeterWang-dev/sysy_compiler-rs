@@ -32,22 +32,43 @@ Block: Block = "{" <stmt: Stmt> "}" => Block { stmt };
 
 Stmt: Stmt = "return" <expr: Expr> ";" => Stmt { expr };
 
-Expr: Expr = <expr: UnaryExpr> => Expr::UnaryExpr(expr);
-
-UnaryExpr: UnaryExpr = {
-  <expr: PrimaryExpr> => UnaryExpr::PrimaryExpr(expr),
-  <op: UnaryOp> <expr: UnaryExpr> => UnaryExpr::Unary(op, Box::new(expr)),
-}
+Expr: Expr = <expr: AddExpr> => Expr::AddExpr(expr);
 
 PrimaryExpr: PrimaryExpr = {
   "(" <expr: Expr> ")" => PrimaryExpr::Expr(Box::new(expr)),
   <num: Number> => PrimaryExpr::Number(num),
 }
 
+UnaryExpr: UnaryExpr = {
+  <expr: PrimaryExpr> => UnaryExpr::PrimaryExpr(expr),
+  <op: UnaryOp> <expr: UnaryExpr> => UnaryExpr::Unary(op, Box::new(expr)),
+}
+
 UnaryOp: UnaryOp = {
   "+" => UnaryOp::Positive,
   "-" => UnaryOp::Negative,
   "!" => UnaryOp::LogicalNot,
+}
+
+MulExpr: MulExpr = {
+  <expr: UnaryExpr> => MulExpr::UnaryExpr(expr),
+  <lhs: MulExpr> <op: MulOp> <rhs: UnaryExpr> => MulExpr::Mul(Box::new(lhs), op, rhs),
+}
+
+MulOp: MulOp = {
+  "*" => MulOp::Multiply,
+  "/" => MulOp::Divide,
+  "%" => MulOp::Module,
+}
+
+AddExpr: AddExpr = {
+  <expr: MulExpr> => AddExpr::MulExpr(expr),
+  <lhs: AddExpr> <op: AddOp> <rhs: MulExpr> => AddExpr::Add(Box::new(lhs), op, rhs),
+}
+
+AddOp: AddOp = {
+  "+" => AddOp::Add,
+  "-" => AddOp::Subtract,
 }
 
 Number: i32 = <val: IntConst> => val;
