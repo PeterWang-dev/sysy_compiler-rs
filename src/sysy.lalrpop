@@ -35,7 +35,10 @@ BlockItem: BlockItem = {
   <stmt: Stmt> => BlockItem::Stmt(stmt),
 }
 
-Decl: Decl = <const_decl: ConstDecl> => Decl::ConstDecl(const_decl);
+Decl: Decl = {
+  <const_decl: ConstDecl> => Decl::ConstDecl(const_decl),
+  <var_decl: VarDecl> => Decl::VarDecl(var_decl),
+}
 
 ConstDecl: ConstDecl = {
   "const" <ty: BType> <def: ConstDef> <mut defs:("," <ConstDef>)*> ";" => ConstDecl {
@@ -55,7 +58,27 @@ ConstInitVal: ConstInitVal = <expr: ConstExpr> => ConstInitVal::ConstExpr(expr);
 
 ConstExpr: ConstExpr = <expr: Expr> => ConstExpr::Expr(expr);
 
-Stmt: Stmt = "return" <expr: Expr> ";" => Stmt { expr };
+VarDecl: VarDecl = {
+  <ty: BType> <var_def: VarDef> <mut defs:("," <VarDef>)*> ";" => VarDecl {
+    ty,
+    defs: {
+      defs.insert(0, var_def);
+      defs
+    }
+  }
+}
+
+VarDef: VarDef = {
+  <ident: Ident> => VarDef::Ident(ident),
+  <ident: Ident> "=" <init_val: InitVal> => VarDef::Init(ident, init_val),
+}
+
+InitVal: InitVal = <expr: Expr> => InitVal::Expr(expr);
+
+Stmt: Stmt = {
+  <lval: LVal> "=" <expr: Expr> ";" => Stmt::Assign(lval, expr),
+  "return" <expr: Expr> ";" => Stmt::Return(expr),
+}
 
 Expr: Expr = <expr: LOrExpr> => Expr::LOrExpr(expr);
 

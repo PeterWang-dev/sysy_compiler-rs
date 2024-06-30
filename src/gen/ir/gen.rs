@@ -118,6 +118,7 @@ impl GenerateIr for Decl {
     fn generate(&self, generator: &mut IrGenerator, scope: Scope) -> Result<Self::Output, Error> {
         match self {
             Decl::ConstDecl(c) => c.generate(generator, scope),
+            _ => unimplemented!(), // TODO: Implement VarDecl
         }
     }
 }
@@ -188,20 +189,22 @@ impl GenerateIr for Stmt {
             _ => unreachable!("Stmt must be in a BasicBlock scope!"),
         };
 
-        let ret_val = self.expr.generate(generator, scope)?;
+        unimplemented!(); // TODO: Modifly Stmt
 
-        let func_data = generator.program_mut().func_mut(func);
-        let dfg = func_data.dfg_mut();
+        // let ret_val = self.expr.generate(generator, scope)?;
 
-        let ret = dfg.new_value().ret(Some(ret_val));
+        // let func_data = generator.program_mut().func_mut(func);
+        // let dfg = func_data.dfg_mut();
 
-        func_data
-            .layout_mut()
-            .bb_mut(block)
-            .insts_mut()
-            .extend([ret]);
+        // let ret = dfg.new_value().ret(Some(ret_val));
 
-        Ok(())
+        // func_data
+        //     .layout_mut()
+        //     .bb_mut(block)
+        //     .insts_mut()
+        //     .extend([ret]);
+
+        // Ok(())
     }
 }
 

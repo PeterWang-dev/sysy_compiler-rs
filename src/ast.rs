@@ -29,6 +29,7 @@ pub enum BlockItem {
 #[derive(Debug)]
 pub enum Decl {
     ConstDecl(ConstDecl),
+    VarDecl(VarDecl),
 }
 
 #[derive(Debug)]
@@ -59,8 +60,26 @@ pub enum ConstExpr {
 }
 
 #[derive(Debug)]
-pub struct Stmt {
-    pub expr: Expr,
+pub struct VarDecl {
+    pub ty: BType,
+    pub defs: Vec<VarDef>,
+}
+
+#[derive(Debug)]
+pub enum VarDef {
+    Ident(String),
+    Init(String, InitVal),
+}
+
+#[derive(Debug)]
+pub enum InitVal {
+    Expr(Expr),
+}
+
+#[derive(Debug)]
+pub enum Stmt {
+    Assign(LVal, Expr),
+    Return(Expr),
 }
 
 #[derive(Debug)]
@@ -164,9 +183,11 @@ mod tests {
     #[ignore]
     fn print_ast() {
         let input = r#"int main() {
-  const int x = 1 + 1;
+  int x = 10;
+  x = x + 1;
   return x;
-}"#;
+}
+"#;
         let ast = CompUnitParser::new().parse(&input).unwrap();
         println!("{:#?}", ast);
     }
