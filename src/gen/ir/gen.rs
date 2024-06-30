@@ -66,15 +66,22 @@ impl GenerateIr for FuncDef {
             Scope::Program => (),
             _ => unreachable!("Function definition must be in Program scope!"),
         }
-
-        let func_info = ir::FunctionData::new(
+        // Create a new basic block for the function
+        let mut func_data = ir::FunctionData::new(
             format!("@{}", self.ident),
             vec![],
             match self.func_type {
                 FuncType::Int => Type::get_i32(),
             },
         );
-        let func = generator.program.new_func(func_info);
+        // Create an entry block
+        let entry = func_data
+            .dfg_mut()
+            .new_bb()
+            .basic_block(Some("%entry".into()));
+        func_data.layout_mut().bbs_mut().extend([entry]);
+        // Add the function with the entry block to the program
+        let func = generator.program.new_func(func_data);
         self.block.generate(generator, Scope::Function(func))?;
         Ok(())
     }
@@ -84,22 +91,34 @@ impl GenerateIr for Block {
     type Output = ();
 
     fn generate(&self, generator: &mut IrGenerator, scope: Scope) -> Result<Self::Output, Error> {
-        let func = match scope {
-            Scope::Function(f) => f,
-            _ => unreachable!("Block must be in a Function scope!"),
+        let (func, block) = match scope {
+            Scope::Function(f) => (
+                f,
+                // Get the entry block of the function (Upper FuncDef calls generation)
+                generator
+                    .program
+                    .func(f)
+                    .layout()
+                    .entry_bb()
+                    .ok_or(Error::SemanticError(format!(
+                        "Defined function should have an entry block",
+                    )))?,
+            ),
+            // Nested blocks
+            Scope::BasicBlock(f, b) => (f, b),
+            _ => unreachable!("Block must be in a Function or BaiscBlock scope!"),
         };
-        let func_data = generator.program_mut().func_mut(func);
 
-        let entry = func_data
-            .dfg_mut()
-            .new_bb()
-            .basic_block(Some("%entry".into()));
+        // Enter a new scope
+        generator.symbol_table_mut().enter_scope();
 
-        func_data.layout_mut().bbs_mut().extend([entry]);
-
+        // Generate IR for each item in the block
         for item in self.items.iter() {
-            item.generate(generator, Scope::BasicBlock(func, entry))?;
+            item.generate(generator, Scope::BasicBlock(func, block))?;
         }
+
+        // Exit the scope
+        generator.symbol_table_mut().exit_scope();
 
         Ok(())
     }
@@ -302,19 +321,43 @@ impl GenerateIr for Stmt {
 
                 Ok(())
             }
+            Stmt::Expr(e) => match e {
+                Some(e) => {
+                    let _ = e.generate(generator, scope)?;
+                    Ok(())
+                }
+                None => Ok(()),
+            },
+            Stmt::Block(b) => b.generate(generator, scope),
             Stmt::Return(e) => {
-                let ret_val = e.generate(generator, scope)?;
+                match e {
+                    Some(e) => {
+                        let ret_val = e.generate(generator, scope)?;
 
-                let func_data = generator.program_mut().func_mut(func);
-                let dfg = func_data.dfg_mut();
+                        let func_data = generator.program_mut().func_mut(func);
+                        let dfg = func_data.dfg_mut();
 
-                let ret = dfg.new_value().ret(Some(ret_val));
+                        let ret = dfg.new_value().ret(Some(ret_val));
 
-                func_data
-                    .layout_mut()
-                    .bb_mut(block)
-                    .insts_mut()
-                    .extend([ret]);
+                        func_data
+                            .layout_mut()
+                            .bb_mut(block)
+                            .insts_mut()
+                            .extend([ret]);
+                    }
+                    None => {
+                        let func_data = generator.program_mut().func_mut(func);
+                        let dfg = func_data.dfg_mut();
+
+                        let ret = dfg.new_value().ret(None);
+
+                        func_data
+                            .layout_mut()
+                            .bb_mut(block)
+                            .insts_mut()
+                            .extend([ret]);
+                    }
+                }
 
                 Ok(())
             }

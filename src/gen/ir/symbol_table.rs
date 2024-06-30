@@ -9,26 +9,39 @@ pub enum SymbolValue {
 }
 
 pub struct SymbolTable {
-    table: HashMap<String, SymbolValue>,
+    table_stack: Vec<HashMap<String, SymbolValue>>,
 }
 
 impl SymbolTable {
     pub fn new() -> Self {
         Self {
-            table: HashMap::new(),
+            table_stack: vec![HashMap::new()],
         }
     }
 
+    pub fn enter_scope(&mut self) {
+        self.table_stack.push(HashMap::new());
+    }
+
+    pub fn exit_scope(&mut self) {
+        self.table_stack.pop();
+    }
+
     pub fn try_insert(&mut self, name: String, value: SymbolValue) -> Result<(), Error> {
-        if self.table.contains_key(&name) {
+        let top = self.table_stack.last_mut().unwrap();
+        if top.contains_key(&name) {
             return Err(Error::SemanticError(format!("{} already exists", name)));
         }
-
-        self.table.insert(name, value);
+        top.insert(name, value);
         Ok(())
     }
 
     pub fn get(&self, name: &str) -> Option<&SymbolValue> {
-        self.table.get(name)
+        for table in self.table_stack.iter().rev() {
+            if let Some(value) = table.get(name) {
+                return Some(value);
+            }
+        }
+        None
     }
 }
