@@ -27,7 +27,9 @@ fn main() -> Result<()> {
 
     // parse the input
     let ast = sysy::CompUnitParser::new().parse(&input).unwrap();
-    let program = ir_gen::generate_on(&ast).unwrap();
+    let mut gen = ir_gen::IrGenerator::new();
+    gen.generate_on(&ast).unwrap();
+    let program = gen.program();
 
     // generate the output conditionally
     let text_from_ir = match mode.as_str() {

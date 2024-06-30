@@ -1,9 +1,10 @@
 use super::scope;
 
-mod gen;
 mod eval;
+mod gen;
+mod symbol_table;
 
 #[cfg(test)]
 mod tests;
 
-pub use gen::generate_on;
+pub use gen::IrGenerator;

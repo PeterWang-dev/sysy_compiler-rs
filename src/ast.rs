@@ -10,7 +10,7 @@ pub struct FuncDef {
     pub block: Block,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum FuncType {
     Int,
 }
@@ -33,11 +33,11 @@ pub enum Decl {
 
 #[derive(Debug)]
 pub struct ConstDecl {
-    pub btype: BType,
+    pub ty: BType,
     pub defs: Vec<ConstDef>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum BType {
     Int,
 }

@@ -1,19 +1,55 @@
-use super::scope::Scope;
+use super::{eval::Evaluate, scope::Scope, symbol_table::SymbolTable};
 use crate::{ast::*, error::Error};
 use koopa::ir::{self, builder_traits::*, BinaryOp, Program, Type, Value};
+
+/// A generator for IR.
+pub struct IrGenerator {
+    program: Program,
+    symbol_table: SymbolTable,
+}
+
+impl IrGenerator {
+    pub fn new() -> Self {
+        Self {
+            program: Program::new(),
+            symbol_table: SymbolTable::new(),
+        }
+    }
+
+    pub fn generate_on(&mut self, ast: &CompUnit) -> Result<(), Error> {
+        ast.generate(self, Scope::Program)?;
+        Ok(())
+    }
+
+    pub fn program(&self) -> &Program {
+        &self.program
+    }
+
+    pub fn program_mut(&mut self) -> &mut Program {
+        &mut self.program
+    }
+
+    pub fn symbol_table(&self) -> &SymbolTable {
+        &self.symbol_table
+    }
+
+    pub fn symbol_table_mut(&mut self) -> &mut SymbolTable {
+        &mut self.symbol_table
+    }
+}
 
 /// A trait for generating IR from AST nodes.
 trait GenerateIr {
     type Output;
 
-    fn generate(&self, program: &mut Program, scope: Scope) -> Result<Self::Output, Error>;
+    fn generate(&self, generator: &mut IrGenerator, scope: Scope) -> Result<Self::Output, Error>;
 }
 
 impl GenerateIr for CompUnit {
     type Output = ();
 
-    fn generate(&self, program: &mut Program, scope: Scope) -> Result<Self::Output, Error> {
-        self.func_def.generate(program, scope)?;
+    fn generate(&self, generator: &mut IrGenerator, scope: Scope) -> Result<Self::Output, Error> {
+        self.func_def.generate(generator, scope)?;
         Ok(())
     }
 }
@@ -21,7 +57,7 @@ impl GenerateIr for CompUnit {
 impl GenerateIr for FuncDef {
     type Output = ();
 
-    fn generate(&self, program: &mut Program, scope: Scope) -> Result<Self::Output, Error> {
+    fn generate(&self, generator: &mut IrGenerator, scope: Scope) -> Result<Self::Output, Error> {
         match scope {
             Scope::Program => (),
             _ => unreachable!("Function definition must be in Program scope!"),
@@ -34,8 +70,8 @@ impl GenerateIr for FuncDef {
                 FuncType::Int => Type::get_i32(),
             },
         );
-        let func = program.new_func(func_info);
-        self.block.generate(program, Scope::Function(&func))?;
+        let func = generator.program.new_func(func_info);
+        self.block.generate(generator, Scope::Function(func))?;
         Ok(())
     }
 }
@@ -43,12 +79,12 @@ impl GenerateIr for FuncDef {
 impl GenerateIr for Block {
     type Output = ();
 
-    fn generate(&self, program: &mut Program, scope: Scope) -> Result<Self::Output, Error> {
-        let &func = match scope {
+    fn generate(&self, generator: &mut IrGenerator, scope: Scope) -> Result<Self::Output, Error> {
+        let func = match scope {
             Scope::Function(f) => f,
             _ => unreachable!("Block must be in a Function scope!"),
         };
-        let func_data = program.func_mut(func);
+        let func_data = generator.program_mut().func_mut(func);
 
         let entry = func_data
             .dfg_mut()
@@ -57,34 +93,111 @@ impl GenerateIr for Block {
 
         func_data.layout_mut().bbs_mut().extend([entry]);
 
-        unimplemented!();
-
-        // self.stmt
-        //     .generate(program, Scope::BasicBlock(&func, &entry))?;
+        for item in self.items.iter() {
+            item.generate(generator, Scope::BasicBlock(func, entry))?;
+        }
 
         Ok(())
+    }
+}
+
+impl GenerateIr for BlockItem {
+    type Output = ();
+
+    fn generate(&self, generator: &mut IrGenerator, scope: Scope) -> Result<Self::Output, Error> {
+        match self {
+            BlockItem::Stmt(s) => s.generate(generator, scope),
+            BlockItem::Decl(d) => d.generate(generator, scope),
+        }
+    }
+}
+
+impl GenerateIr for Decl {
+    type Output = ();
+
+    fn generate(&self, generator: &mut IrGenerator, scope: Scope) -> Result<Self::Output, Error> {
+        match self {
+            Decl::ConstDecl(c) => c.generate(generator, scope),
+        }
+    }
+}
+
+impl GenerateIr for ConstDecl {
+    type Output = ();
+
+    fn generate(&self, generator: &mut IrGenerator, scope: Scope) -> Result<Self::Output, Error> {
+        match scope {
+            Scope::BasicBlock(_, _) => (),
+            _ => unreachable!("ConstDecl must be in a BasicBlock scope!"),
+        };
+
+        let scope = match self.ty {
+            BType::Int => Scope::Decl(Type::get_i32()),
+        };
+
+        for def in self.defs.iter() {
+            def.generate(generator, scope.clone())?
+        }
+
+        Ok(())
+    }
+}
+
+impl GenerateIr for ConstDef {
+    type Output = ();
+
+    fn generate(&self, generator: &mut IrGenerator, scope: Scope) -> Result<Self::Output, Error> {
+        match scope {
+            Scope::Decl(_) => (),
+            _ => unreachable!("ConstDef must be in a Decl scope!"),
+        };
+
+        let const_val = self.init_val.generate(generator, scope)?;
+
+        let st = generator.symbol_table_mut();
+        st.insert(self.ident.clone(), const_val);
+
+        Ok(())
+    }
+}
+
+impl GenerateIr for ConstInitVal {
+    type Output = i32;
+
+    fn generate(&self, generator: &mut IrGenerator, scope: Scope) -> Result<Self::Output, Error> {
+        match scope {
+            Scope::Decl(_) => (),
+            _ => unreachable!("ConstInitVal must be in a Decl scope!"),
+        };
+
+        match self {
+            ConstInitVal::ConstExpr(e) => {
+                let sym_table = generator.symbol_table();
+                Ok(e.eval(sym_table)?)
+            }
+        }
     }
 }
 
 impl GenerateIr for Stmt {
     type Output = ();
 
-    fn generate(&self, program: &mut Program, scope: Scope) -> Result<Self::Output, Error> {
-        let (&func, block) = match scope {
+    fn generate(&self, generator: &mut IrGenerator, scope: Scope) -> Result<Self::Output, Error> {
+        let (func, block) = match scope {
             Scope::BasicBlock(f, b) => (f, b),
             _ => unreachable!("Stmt must be in a BasicBlock scope!"),
         };
 
-        let ret_val = self.expr.generate(program, scope)?;
+        let ret_val = self.expr.generate(generator, scope)?;
 
-        let func_data = program.func_mut(func);
+        let func_data = generator.program_mut().func_mut(func);
         let dfg = func_data.dfg_mut();
 
         let ret = dfg.new_value().ret(Some(ret_val));
 
         func_data
             .layout_mut()
-            .bb_mut(*block)
+            .bb_mut(block)
             .insts_mut()
             .extend([ret]);
 
@@ -95,11 +208,11 @@ impl GenerateIr for Stmt {
 impl GenerateIr for Expr {
     type Output = Value;
 
-    fn generate(&self, program: &mut Program, scope: Scope) -> Result<Self::Output, Error> {
+    fn generate(&self, generator: &mut IrGenerator, scope: Scope) -> Result<Self::Output, Error> {
         // no need to check scope here as Expr can only be in Stmt, and check has been done in Stmt
         // also scope not used here
         match self {
-            Expr::LOrExpr(e) => e.generate(program, scope),
+            Expr::LOrExpr(e) => e.generate(generator, scope),
         }
     }
 }
@@ -107,16 +220,24 @@ impl GenerateIr for Expr {
 impl GenerateIr for PrimaryExpr {
     type Output = Value;
 
-    fn generate(&self, program: &mut Program, scope: Scope) -> Result<Self::Output, Error> {
-        let dfg = match scope {
-            Scope::BasicBlock(f, _) => program.func_mut(*f).dfg_mut(),
+    fn generate(&self, generator: &mut IrGenerator, scope: Scope) -> Result<Self::Output, Error> {
+        let func = match scope {
+            Scope::BasicBlock(f, _) => f,
             _ => unreachable!("PrimaryExpr must be in a BasicBlock scope!"),
         };
 
         match self {
-            PrimaryExpr::Number(n) => Ok(dfg.new_value().integer(*n)),
-            PrimaryExpr::Expr(e) => e.generate(program, scope),
-            _ => unimplemented!(),
+            PrimaryExpr::Number(n) => {
+                let dfg = generator.program_mut().func_mut(func).dfg_mut();
+                Ok(dfg.new_value().integer(*n))
+            }
+            PrimaryExpr::Expr(e) => e.generate(generator, scope),
+            PrimaryExpr::LVal(l_val) => {
+                let sym_table = generator.symbol_table();
+                let res = l_val.eval(sym_table)?;
+                let dfg = generator.program_mut().func_mut(func).dfg_mut();
+                Ok(dfg.new_value().integer(res))
+            }
         }
     }
 }
@@ -124,17 +245,17 @@ impl GenerateIr for PrimaryExpr {
 impl GenerateIr for UnaryExpr {
     type Output = Value;
 
-    fn generate(&self, program: &mut Program, scope: Scope) -> Result<Self::Output, Error> {
-        let (&func, &block) = match scope {
+    fn generate(&self, generator: &mut IrGenerator, scope: Scope) -> Result<Self::Output, Error> {
+        let (func, block) = match scope {
             Scope::BasicBlock(f, b) => (f, b),
             _ => unreachable!("UnaryExpr must be in a BasicBlock scope!"),
         };
 
         match self {
-            UnaryExpr::PrimaryExpr(e) => e.generate(program, scope),
+            UnaryExpr::PrimaryExpr(e) => e.generate(generator, scope),
             UnaryExpr::Unary(op, e) => {
-                let val = e.generate(program, scope)?;
-                let func_data = program.func_mut(func);
+                let val = e.generate(generator, scope)?;
+                let func_data = generator.program_mut().func_mut(func);
                 let dfg = func_data.dfg_mut();
 
                 let unary = match op {
@@ -170,19 +291,19 @@ impl GenerateIr for UnaryExpr {
 impl GenerateIr for MulExpr {
     type Output = Value;
 
-    fn generate(&self, program: &mut Program, scope: Scope) -> Result<Self::Output, Error> {
-        let (&func, &block) = match scope {
+    fn generate(&self, generator: &mut IrGenerator, scope: Scope) -> Result<Self::Output, Error> {
+        let (func, block) = match scope {
             Scope::BasicBlock(f, b) => (f, b),
             _ => unreachable!("MulExpr must be in a BasicBlock scope!"),
         };
 
         match self {
-            MulExpr::UnaryExpr(e) => e.generate(program, scope),
+            MulExpr::UnaryExpr(e) => e.generate(generator, scope),
             MulExpr::Mul(mul_expr, op, unary_expr) => {
-                let lhs = mul_expr.generate(program, Scope::BasicBlock(&func, &block))?;
-                let rhs = unary_expr.generate(program, Scope::BasicBlock(&func, &block))?;
+                let lhs = mul_expr.generate(generator, Scope::BasicBlock(func, block))?;
+                let rhs = unary_expr.generate(generator, Scope::BasicBlock(func, block))?;
 
-                let func_data = program.func_mut(func);
+                let func_data = generator.program_mut().func_mut(func);
                 let dfg = func_data.dfg_mut();
 
                 let mul = match op {
@@ -206,19 +327,19 @@ impl GenerateIr for MulExpr {
 impl GenerateIr for AddExpr {
     type Output = Value;
 
-    fn generate(&self, program: &mut Program, scope: Scope) -> Result<Self::Output, Error> {
-        let (&func, &block) = match scope {
+    fn generate(&self, generator: &mut IrGenerator, scope: Scope) -> Result<Self::Output, Error> {
+        let (func, block) = match scope {
             Scope::BasicBlock(f, b) => (f, b),
             _ => unreachable!("AddExpr must be in a BasicBlock scope!"),
         };
 
         match self {
-            AddExpr::MulExpr(e) => e.generate(program, scope),
+            AddExpr::MulExpr(e) => e.generate(generator, scope),
             AddExpr::Add(add_expr, op, mul_expr) => {
-                let lhs = add_expr.generate(program, Scope::BasicBlock(&func, &block))?;
-                let rhs = mul_expr.generate(program, Scope::BasicBlock(&func, &block))?;
+                let lhs = add_expr.generate(generator, Scope::BasicBlock(func, block))?;
+                let rhs = mul_expr.generate(generator, Scope::BasicBlock(func, block))?;
 
-                let func_data = program.func_mut(func);
+                let func_data = generator.program_mut().func_mut(func);
                 let dfg = func_data.dfg_mut();
 
                 let mul = match op {
@@ -241,19 +362,19 @@ impl GenerateIr for AddExpr {
 impl GenerateIr for RelExpr {
     type Output = Value;
 
-    fn generate(&self, program: &mut Program, scope: Scope) -> Result<Self::Output, Error> {
-        let (&func, &block) = match scope {
+    fn generate(&self, generator: &mut IrGenerator, scope: Scope) -> Result<Self::Output, Error> {
+        let (func, block) = match scope {
             Scope::BasicBlock(f, b) => (f, b),
             _ => unreachable!("RelExpr must be in a BasicBlock scope!"),
         };
 
         match self {
-            RelExpr::AddExpr(e) => e.generate(program, scope),
+            RelExpr::AddExpr(e) => e.generate(generator, scope),
             RelExpr::Rel(rel_expr, op, add_expr) => {
-                let lhs = rel_expr.generate(program, Scope::BasicBlock(&func, &block))?;
-                let rhs = add_expr.generate(program, Scope::BasicBlock(&func, &block))?;
+                let lhs = rel_expr.generate(generator, Scope::BasicBlock(func, block))?;
+                let rhs = add_expr.generate(generator, Scope::BasicBlock(func, block))?;
 
-                let func_data = program.func_mut(func);
+                let func_data = generator.program_mut().func_mut(func);
                 let dfg = func_data.dfg_mut();
 
                 let rel = match op {
@@ -278,19 +399,19 @@ impl GenerateIr for RelExpr {
 impl GenerateIr for EqExpr {
     type Output = Value;
 
-    fn generate(&self, program: &mut Program, scope: Scope) -> Result<Self::Output, Error> {
-        let (&func, &block) = match scope {
+    fn generate(&self, generator: &mut IrGenerator, scope: Scope) -> Result<Self::Output, Error> {
+        let (func, block) = match scope {
             Scope::BasicBlock(f, b) => (f, b),
             _ => unreachable!("EqExpr must be in a BasicBlock scope!"),
         };
 
         match self {
-            EqExpr::RelExpr(e) => e.generate(program, scope),
+            EqExpr::RelExpr(e) => e.generate(generator, scope),
             EqExpr::Eq(eq_expr, op, rel_expr) => {
-                let lhs = eq_expr.generate(program, Scope::BasicBlock(&func, &block))?;
-                let rhs = rel_expr.generate(program, Scope::BasicBlock(&func, &block))?;
+                let lhs = eq_expr.generate(generator, Scope::BasicBlock(func, block))?;
+                let rhs = rel_expr.generate(generator, Scope::BasicBlock(func, block))?;
 
-                let func_data = program.func_mut(func);
+                let func_data = generator.program_mut().func_mut(func);
                 let dfg = func_data.dfg_mut();
 
                 let eq = match op {
@@ -313,19 +434,19 @@ impl GenerateIr for EqExpr {
 impl GenerateIr for LAndExpr {
     type Output = Value;
 
-    fn generate(&self, program: &mut Program, scope: Scope) -> Result<Self::Output, Error> {
-        let (&func, &block) = match scope {
+    fn generate(&self, generator: &mut IrGenerator, scope: Scope) -> Result<Self::Output, Error> {
+        let (func, block) = match scope {
             Scope::BasicBlock(f, b) => (f, b),
             _ => unreachable!("LAndExpr must be in a BasicBlock scope!"),
         };
 
         match self {
-            LAndExpr::EqExpr(e) => e.generate(program, scope),
+            LAndExpr::EqExpr(e) => e.generate(generator, scope),
             LAndExpr::LAnd(l_and_expr, eq_expr) => {
-                let lhs = l_and_expr.generate(program, Scope::BasicBlock(&func, &block))?;
-                let rhs = eq_expr.generate(program, Scope::BasicBlock(&func, &block))?;
+                let lhs = l_and_expr.generate(generator, Scope::BasicBlock(func, block))?;
+                let rhs = eq_expr.generate(generator, Scope::BasicBlock(func, block))?;
 
-                let func_data = program.func_mut(func);
+                let func_data = generator.program_mut().func_mut(func);
                 let dfg = func_data.dfg_mut();
 
                 let zero = dfg.new_value().integer(0);
@@ -348,19 +469,19 @@ impl GenerateIr for LAndExpr {
 impl GenerateIr for LOrExpr {
     type Output = Value;
 
-    fn generate(&self, program: &mut Program, scope: Scope) -> Result<Self::Output, Error> {
-        let (&func, &block) = match scope {
+    fn generate(&self, generator: &mut IrGenerator, scope: Scope) -> Result<Self::Output, Error> {
+        let (func, block) = match scope {
             Scope::BasicBlock(f, b) => (f, b),
             _ => unreachable!("LOrExpr must be in a BasicBlock scope!"),
         };
 
         match self {
-            LOrExpr::LAndExpr(e) => e.generate(program, scope),
+            LOrExpr::LAndExpr(e) => e.generate(generator, scope),
             LOrExpr::LOr(l_or_expr, l_and_expr) => {
-                let lhs = l_or_expr.generate(program, Scope::BasicBlock(&func, &block))?;
-                let rhs = l_and_expr.generate(program, Scope::BasicBlock(&func, &block))?;
+                let lhs = l_or_expr.generate(generator, Scope::BasicBlock(func, block))?;
+                let rhs = l_and_expr.generate(generator, Scope::BasicBlock(func, block))?;
 
-                let func_data = program.func_mut(func);
+                let func_data = generator.program_mut().func_mut(func);
                 let dfg = func_data.dfg_mut();
 
                 let zero = dfg.new_value().integer(0);
@@ -379,11 +500,3 @@ impl GenerateIr for LOrExpr {
         }
     }
 }
-
-pub fn generate_on(ast: &CompUnit) -> Result<Program, Error> {
-    let mut program = Program::new();
-    ast.generate(&mut program, Scope::Program)?;
-    Ok(program)
-}
-
-

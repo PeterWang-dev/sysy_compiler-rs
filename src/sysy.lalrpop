@@ -38,8 +38,8 @@ BlockItem: BlockItem = {
 Decl: Decl = <const_decl: ConstDecl> => Decl::ConstDecl(const_decl);
 
 ConstDecl: ConstDecl = {
-  "const" <btype: BType> <def: ConstDef> <mut defs:("," <ConstDef>)*> ";" => ConstDecl {
-    btype,
+  "const" <ty: BType> <def: ConstDef> <mut defs:("," <ConstDef>)*> ";" => ConstDecl {
+    ty,
     defs: {
       defs.insert(0, def);
       defs

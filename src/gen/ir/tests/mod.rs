@@ -1,4 +1,4 @@
-use super::generate_on;
+use super::IrGenerator;
 use crate::sysy::CompUnitParser;
 use koopa::back::KoopaGenerator;
 
@@ -7,7 +7,9 @@ mod const_variable;
 
 fn generate_ir_from_input(input: &str) -> String {
     let ast = CompUnitParser::new().parse(input).unwrap();
-    let program = generate_on(&ast).unwrap();
+    let mut gen = IrGenerator::new();
+    gen.generate_on(&ast).unwrap();
+    let program = gen.program();
     let mut gen = KoopaGenerator::new(Vec::new());
     gen.generate_on(&program).unwrap();
     std::str::from_utf8(&gen.writer()).unwrap().to_string()

@@ -12,6 +12,7 @@ fn test_const() {
         r#"fun @main(): i32 {
 %entry:
   ret 2
-}"#
+}
+"#
     );
 }

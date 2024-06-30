@@ -22,7 +22,7 @@ impl GenerateAsm for Program {
         asm.push_str(format!("  .globl main\n").as_str());
 
         for func in self.func_layout() {
-            let func_asm = func.generate(program, Scope::Function(func))?;
+            let func_asm = func.generate(program, Scope::Function(*func))?;
             asm.push_str(&func_asm);
         }
 
@@ -33,7 +33,7 @@ impl GenerateAsm for Program {
 impl GenerateAsm for Function {
     fn generate(&self, program: &Program, scope: Scope) -> Result<Asm, Error> {
         let (func, func_data) = match scope {
-            Scope::Function(f) => (f, program.func(*f)),
+            Scope::Function(f) => (f, program.func(f)),
             _ => unreachable!("Function must be in a function scope!"),
         };
 
@@ -43,7 +43,7 @@ impl GenerateAsm for Function {
         let name_raw = &func_data.name()[1..];
         asm.push_str(format!("{}:\n", name_raw).as_str());
 
-        for (bb, node) in func_data.layout().bbs() {
+        for (&bb, node) in func_data.layout().bbs() {
             // BasicBlockNode contains instructions instead of BasicBlock
             let bb_asm = node.generate(program, Scope::BasicBlock(func, bb))?;
             asm.push_str(&bb_asm);
@@ -74,7 +74,7 @@ impl GenerateAsm for BasicBlockNode {
 impl GenerateAsm for Value {
     fn generate(&self, program: &Program, scope: Scope) -> Result<Asm, Error> {
         let func_data = match scope {
-            Scope::BasicBlock(f, _) => program.func(*f),
+            Scope::BasicBlock(f, _) => program.func(f),
             _ => unreachable!("Value must be in a basic block scope!"),
         };
 
@@ -136,7 +136,9 @@ mod tests {
 }"#;
 
         let ast = CompUnitParser::new().parse(input).unwrap();
-        let program = ir::generate_on(&ast).unwrap();
+        let mut gen = ir::IrGenerator::new();
+        gen.generate_on(&ast).unwrap();
+        let program = gen.program();
         let asm = generate_on(&program).unwrap();
 
         assert_eq!(
