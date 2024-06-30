@@ -3,6 +3,7 @@ use crate::sysy::CompUnitParser;
 use koopa::back::KoopaGenerator;
 
 mod expr;
+mod const_variable;
 
 fn generate_ir_from_input(input: &str) -> String {
     let ast = CompUnitParser::new().parse(input).unwrap();
