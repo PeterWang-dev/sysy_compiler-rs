@@ -71,6 +71,38 @@ AddOp: AddOp = {
   "-" => AddOp::Subtract,
 }
 
+RelExpr: RelExpr = {
+  <expr: AddExpr> => RelExpr::AddExpr(expr),
+  <lhs: RelExpr> <op: RelOp> <rhs: AddExpr> => RelExpr::Rel(Box::new(lhs), op, rhs),
+}
+
+RelOp: RelOp = {
+  "<" => RelOp::LessThan,
+  "<=" => RelOp::LessEqual,
+  ">" => RelOp::GreaterThan,
+  ">=" => RelOp::GreaterEqual,
+}
+
+EqExpr: EqExpr = {
+  <expr: RelExpr> => EqExpr::RelExpr(expr),
+  <lhs: EqExpr> <op: EqOp> <rhs: RelExpr> => EqExpr::Eq(Box::new(lhs), op, rhs),
+}
+
+EqOp: EqOp = {
+  "==" => EqOp::Equal,
+  "!=" => EqOp::NotEqual,
+}
+
+LAndExpr: LAndExpr = {
+  <expr: EqExpr> => LAndExpr::EqExpr(expr),
+  <lhs: LAndExpr> "&&" <rhs: EqExpr> => LAndExpr::LAnd(Box::new(lhs), rhs),
+}
+
+LOrExpr: LOrExpr = {
+  <expr: LAndExpr> => LOrExpr::LAndExpr(expr),
+  <lhs: LOrExpr> "||" <rhs: LAndExpr> => LOrExpr::LOr(Box::new(lhs), rhs),
+}
+
 Number: i32 = <val: IntConst> => val;
 
 // If match the pattern, return the matched string

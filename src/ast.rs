@@ -73,3 +73,41 @@ pub enum AddOp {
     Add,
     Subtract,
 }
+
+#[derive(Debug)]
+pub enum RelExpr {
+    AddExpr(AddExpr),
+    Rel(Box<RelExpr>, RelOp, AddExpr),
+}
+
+#[derive(Debug)]
+pub enum RelOp {
+    LessThan,
+    LessEqual,
+    GreaterThan,
+    GreaterEqual,
+}
+
+#[derive(Debug)]
+pub enum EqExpr {
+    RelExpr(RelExpr),
+    Eq(Box<EqExpr>, EqOp, RelExpr),
+}
+
+#[derive(Debug)]
+pub enum EqOp {
+    Equal,
+    NotEqual,
+}
+
+#[derive(Debug)]
+pub enum LAndExpr {
+    EqExpr(EqExpr),
+    LAnd(Box<LAndExpr>, EqExpr),
+}
+
+#[derive(Debug)]
+pub enum LOrExpr {
+    LAndExpr(LAndExpr),
+    LOr(Box<LOrExpr>, LAndExpr),
+}
