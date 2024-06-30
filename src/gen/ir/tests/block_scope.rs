@@ -16,18 +16,18 @@ fn test_block_scope() {
         text_form_ir,
         r#"fun @main(): i32 {
 %entry:
-    %a = alloca i32
-    store i32 1, i32* %a
-    %b = alloca i32
-    store i32 2, i32* %b
-    %a1 = alloca i32
-    store i32 2, i32* %a1
-    %b2 = load i32, i32* %b
-    %a3 = load i32, i32* %a1
-    %add = add i32 %b2, %a3
-    store i32 %add, i32* %b
-    %b4 = load i32, i32* %b
-    ret i32 %b4
+  %0 = alloc i32
+  store 1, %0
+  %1 = alloc i32
+  store 2, %1
+  %2 = alloc i32
+  store 2, %2
+  %3 = load %1
+  %4 = load %2
+  %5 = add %3, %4
+  store %5, %1
+  %6 = load %1
+  ret %6
 }
 "#
     );
