@@ -15,7 +15,7 @@ pub struct SymbolTable {
 impl SymbolTable {
     pub fn new() -> Self {
         Self {
-            table_stack: vec![HashMap::new()],
+            table_stack: vec![],
         }
     }
 
