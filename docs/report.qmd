@@ -209,11 +209,34 @@ AST 是源代码的抽象表示，是编译器前端的核心数据结构。
 
 - [x] `int` 类型的变量、常量与表达式
 - [x] 常量编译期求值、作用域
-- [x] `if/else` 语句、`while/break/continue` 语句
-- [x] 函数与全局变量
-- [x] 数组与多维数组
+- [ ] `if/else` 语句、`while/break/continue` 语句
+- [ ] 函数与全局变量
+- [ ] 数组与多维数组
 
 # 测试用例
+
+测试用例代码如下：
+
+```c
+int main() {
+  int a = 1, b = 2;
+  {
+    int a = 2;
+    b = b + a;
+  }
+  return b;
+}
+```
+
+编译测试用例，得到 LLVM IR 。过程如图 @fig-llvm_ir_result 所示。
+
+![编译得到 LLVM IR](assets/imgs/llvm_ir_result.png){#fig-llvm_ir_result}
+
+而后使用 Clang 进一步对得到的 LLVM IR 编译，得到可执行文件并运行，如图 @fig-running_result 所示。
+
+![编译 LLVM IR 并运行可执行文件](assets/imgs/running_result.png){#fig-running_result}
+
+可以看到程序成功运行。
 
 # 心得体会
 
