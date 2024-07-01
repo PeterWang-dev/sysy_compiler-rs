@@ -281,46 +281,8 @@ impl GenerateIr for Stmt {
     type Output = ();
 
     fn generate(&self, generator: &mut IrGenerator, scope: Scope) -> Result<Self::Output, Error> {
-        let (func, block) = match scope {
-            Scope::BasicBlock(f, b) => (f, b),
-            _ => unreachable!("Stmt must be in a BasicBlock scope!"),
-        };
-
         match self {
-            Stmt::Assign(v, e) => {
-                match v {
-                    LVal::Ident(ident) => {
-                        let tbl_val = generator
-                            .symbol_table()
-                            .get(ident)
-                            .ok_or(Error::SemanticError(format!("Undefined symbol: {}", ident)))?;
-
-                        let &lhs = match tbl_val {
-                            SymbolValue::Var(v) => v,
-                            _ => {
-                                return Err(Error::SemanticError(format!(
-                                    "Can not assign to a constant: {}",
-                                    ident
-                                )))
-                            }
-                        };
-
-                        let rhs = e.generate(generator, scope)?;
-                        let func_data = generator.program_mut().func_mut(func);
-                        let dfg = func_data.dfg_mut();
-
-                        let store = dfg.new_value().store(rhs, lhs);
-
-                        func_data
-                            .layout_mut()
-                            .bb_mut(block)
-                            .insts_mut()
-                            .extend([store]);
-                    }
-                }
-
-                Ok(())
-            }
+            Stmt::Block(b) => b.generate(generator, scope),
             Stmt::Expr(e) => match e {
                 Some(e) => {
                     let _ = e.generate(generator, scope)?;
@@ -328,40 +290,104 @@ impl GenerateIr for Stmt {
                 }
                 None => Ok(()),
             },
-            Stmt::Block(b) => b.generate(generator, scope),
-            Stmt::Return(e) => {
-                match e {
-                    Some(e) => {
-                        let ret_val = e.generate(generator, scope)?;
+            Stmt::If(s) => s.generate(generator, scope),
+            Stmt::Assign(s) => s.generate(generator, scope),
+            Stmt::Return(s) => s.generate(generator, scope),
+        }
+    }
+}
 
-                        let func_data = generator.program_mut().func_mut(func);
-                        let dfg = func_data.dfg_mut();
+impl GenerateIr for AssignStmt {
+    type Output = ();
 
-                        let ret = dfg.new_value().ret(Some(ret_val));
+    fn generate(&self, generator: &mut IrGenerator, scope: Scope) -> Result<Self::Output, Error> {
+        let (func, block) = match scope {
+            Scope::BasicBlock(f, b) => (f, b),
+            _ => unreachable!("AssignStmt must be in a BasicBlock scope!"),
+        };
 
-                        func_data
-                            .layout_mut()
-                            .bb_mut(block)
-                            .insts_mut()
-                            .extend([ret]);
+        match &self.l_val {
+            LVal::Ident(ident) => {
+                let tbl_val = generator
+                    .symbol_table()
+                    .get(&ident)
+                    .ok_or(Error::SemanticError(format!("Undefined symbol: {}", ident)))?;
+
+                let &lhs = match tbl_val {
+                    SymbolValue::Var(v) => v,
+                    _ => {
+                        return Err(Error::SemanticError(format!(
+                            "Can not assign to a constant: {}",
+                            ident
+                        )))
                     }
-                    None => {
-                        let func_data = generator.program_mut().func_mut(func);
-                        let dfg = func_data.dfg_mut();
+                };
 
-                        let ret = dfg.new_value().ret(None);
+                let rhs = self.r_expr.generate(generator, scope)?;
+                let func_data = generator.program_mut().func_mut(func);
+                let dfg = func_data.dfg_mut();
 
-                        func_data
-                            .layout_mut()
-                            .bb_mut(block)
-                            .insts_mut()
-                            .extend([ret]);
-                    }
-                }
+                let store = dfg.new_value().store(rhs, lhs);
 
-                Ok(())
+                func_data
+                    .layout_mut()
+                    .bb_mut(block)
+                    .insts_mut()
+                    .extend([store]);
             }
         }
+
+        Ok(())
+    }
+}
+
+impl GenerateIr for IfStmt {
+    type Output = ();
+
+    fn generate(&self, generator: &mut IrGenerator, scope: Scope) -> Result<Self::Output, Error> {
+        todo!()
+    }
+}
+
+impl GenerateIr for ReturnStmt {
+    type Output = ();
+
+    fn generate(&self, generator: &mut IrGenerator, scope: Scope) -> Result<Self::Output, Error> {
+        let (func, block) = match scope {
+            Scope::BasicBlock(f, b) => (f, b),
+            _ => unreachable!("ReturnStmt must be in a BasicBlock scope!"),
+        };
+
+        match &self.ret_val {
+            Some(e) => {
+                let ret_val = e.generate(generator, scope)?;
+
+                let func_data = generator.program_mut().func_mut(func);
+                let dfg = func_data.dfg_mut();
+
+                let ret = dfg.new_value().ret(Some(ret_val));
+
+                func_data
+                    .layout_mut()
+                    .bb_mut(block)
+                    .insts_mut()
+                    .extend([ret]);
+            }
+            None => {
+                let func_data = generator.program_mut().func_mut(func);
+                let dfg = func_data.dfg_mut();
+
+                let ret = dfg.new_value().ret(None);
+
+                func_data
+                    .layout_mut()
+                    .bb_mut(block)
+                    .insts_mut()
+                    .extend([ret]);
+            }
+        }
+
+        Ok(())
     }
 }
 

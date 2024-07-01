@@ -78,10 +78,29 @@ pub enum InitVal {
 
 #[derive(Debug)]
 pub enum Stmt {
-    Assign(LVal, Expr),
-    Expr(Option<Expr>),
     Block(Block),
-    Return(Option<Expr>),
+    Expr(Option<Expr>),
+    Assign(AssignStmt),
+    If(IfStmt),
+    Return(ReturnStmt),
+}
+
+#[derive(Debug)]
+pub struct AssignStmt {
+    pub l_val: LVal,
+    pub r_expr: Expr,
+}
+
+#[derive(Debug)]
+pub struct IfStmt {
+    pub cond: Expr,
+    pub then_stmt: Box<Stmt>,
+    pub else_stmt: Option<Box<Stmt>>,
+}
+
+#[derive(Debug)]
+pub struct ReturnStmt {
+    pub ret_val: Option<Expr>,
 }
 
 #[derive(Debug)]
@@ -185,9 +204,11 @@ mod tests {
     #[ignore]
     fn print_ast() {
         let input = r#"int main() {
-  int x = 10;
-  x = x + 1;
-  return x;
+  int a = 2;
+  if (a) {
+    a = a + 1;
+  } else a = 0;
+  return a;
 }
 "#;
         let ast = CompUnitParser::new().parse(&input).unwrap();

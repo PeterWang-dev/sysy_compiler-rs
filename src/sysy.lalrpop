@@ -76,10 +76,71 @@ VarDef: VarDef = {
 InitVal: InitVal = <expr: Expr> => InitVal::Expr(expr);
 
 Stmt: Stmt = {
-  <lval: LVal> "=" <expr: Expr> ";" => Stmt::Assign(lval, expr),
-  <expr: Expr?> ";" => Stmt::Expr(expr),
+  <stmt: OpenStmt> => <>,
+  <stmt: ClosedStmt> => <>,
+}
+
+OpenStmt: Stmt = {
+  "if" "(" <cond: Expr> ")" <then_stmt: ClosedStmt> => {
+    Stmt::If(
+      IfStmt {
+        cond: cond,
+        then_stmt: Box::new(then_stmt),
+        else_stmt: None
+      }
+    )
+  },
+  "if" "(" <cond: Expr> ")" <then_stmt: OpenStmt> => {
+    Stmt::If(
+      IfStmt {
+        cond: cond,
+        then_stmt: Box::new(then_stmt),
+        else_stmt: None
+      }
+    )
+  },
+  "if" "(" <cond: Expr> ")" <then_stmt: ClosedStmt> "else" <else_stmt: OpenStmt> => {
+    Stmt::If(
+      IfStmt {
+        cond: cond,
+        then_stmt: Box::new(then_stmt),
+        else_stmt: Some(Box::new(else_stmt))
+    }
+    )
+  },
+}
+
+ClosedStmt: Stmt = {
+  <stmt: SimpleStmt> => <>,
+  "if" "(" <cond: Expr> ")" <then_stmt: ClosedStmt> "else" <else_stmt: ClosedStmt> => {
+    Stmt::If(
+      IfStmt {
+        cond: cond,
+        then_stmt: Box::new(then_stmt),
+        else_stmt: Some(Box::new(else_stmt))
+      }
+    )
+  },
+}
+
+SimpleStmt: Stmt = {
   <block: Block> => Stmt::Block(block),
-  "return" <expr: Expr?> ";" => Stmt::Return(expr),
+  <expr: Expr?> ";" => Stmt::Expr(expr),
+  <l_val: LVal> "=" <r_expr: Expr> ";" => {
+    Stmt::Assign(
+      AssignStmt {
+        l_val,
+        r_expr,
+      }
+    )
+  },
+  "return" <ret_val: Expr?> ";" => {
+    Stmt::Return(
+      ReturnStmt {
+        ret_val,
+      }
+    )
+  },
 }
 
 Expr: Expr = <expr: LOrExpr> => Expr::LOrExpr(expr);
