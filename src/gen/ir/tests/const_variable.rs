@@ -45,7 +45,6 @@ fn test_variable() {
   return x;
 }"#;
     let text_form_ir = generate_ir_from_input(input);
-    print!("{:#}", text_form_ir);
     assert_eq!(
         text_form_ir,
         r#"fun @main(): i32 {
