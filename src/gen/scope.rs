@@ -1,6 +1,6 @@
 use koopa::ir;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum Scope {
     Program,
     Function(ir::Function),

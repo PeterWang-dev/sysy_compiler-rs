@@ -5,6 +5,7 @@ use koopa::back::KoopaGenerator;
 mod expr;
 mod const_variable;
 mod block_scope;
+mod if_else;
 
 fn generate_ir_from_input(input: &str) -> String {
     let ast = CompUnitParser::new().parse(input).unwrap();
