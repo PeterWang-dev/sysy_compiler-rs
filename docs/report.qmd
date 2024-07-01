@@ -1,0 +1,232 @@
+---
+title: SysY 编译器（ Rust 实现）
+subtitle: 编译原理课程设计报告
+author: 计算机科学与技术 21(3)班\ 王嘉宸
+
+bibliography: assets/bib/references.bib
+csl: assets/bib/gb-t-7714-2015-numeric.csl
+
+toc: true
+number-sections: true
+
+lang: zh
+
+format:
+  pdf:
+    pdf-engine: xelatex
+    indent: true
+    documentclass: article
+    classoption: [twoside]
+    papersize: a4
+    geometry:
+      - top=2.54cm
+      - bottom=2.54cm
+      - left=3.17cm
+      - right=3.17cm
+    mainfont: Times New Roman
+    CJKmainfont: FandolSong
+    include-in-header:
+      - text: \usepackage{ctex}
+
+  docx: default
+---
+
+# 概述
+
+本课程设计实现了一个 SysY 语言的简单 LLVM 编译器前端，将 SysY 源代码转换为 LLVM IR 代码，
+调用 LLVM 编译器后端生成多平台目标代码。
+
+## SysY 语言简介
+
+SysY 语言是一种精简版的 C 语言 [@compiler_pku] ，
+去除了 C 语言中的指针、结构体、数组等复杂特性，
+并且对类型系统进行了简化，旨在为编译原理课程设计提供一个依托语言。
+
+本次课程设计实现的 SysY 语言的语法定义见《SysY 语言规范》 [@sysy-spec_pku] 。
+
+## Koopa IR 简介
+
+由于 LLVM IR 本身相当复杂，因此本课程设计会先将源代码转换为内存形式的 Koopa IR ，
+而后使用框架接口进一步转换为 LLVM IR 。
+
+Koopa IR 是一种专为北京大学编译原理课程实践设计的教学用的中间表示（ IR ），
+它在设计上类似 LLVM IR ，但简化了很多内容，方便上手和理解。
+
+同时，项目团队为 Koopa IR 开发了对应的框架的接口（ `koopa` ）,
+实现 Koopa IR 的生成/解析/转换。[@compiler_pku]
+
+Koopa IR 是一种强类型的 IR ，
+IR 中的所有值（ Value ）和函数（ Function ）都具备类型（ Type ）。
+Koopa IR 还兼容非 SSA 形式和 SSA 形式，
+基于 SSA 形式下的 Koopa IR，可以开展更多复杂且有效的编译优化。[@compiler_pku]
+
+Koopa IR 的语法定义见《 Koopa IR 语法规范》 [@koopa-spec_pku] 。
+
+## LLVM 编译器架构简介
+
+LLVM 编译器基础设施项目是一个模块化和可重用的编译器和工具链技术集合。
+它提供了用于代码生成、优化和分析的库，支持多种编程语言。
+主要组件包括 LLVM 核心库、 Clang （一个 C/C++/Objective-C 编译器）、
+LLDB （调试器）以及各种运行时库和工具，用于动态测试、并行化和向量化。
+该项目强调灵活性、可扩展性和广泛的社区参与。[@llvm_llvm-project_2024]。
+
+LLVM 编译器架构将编译器的前端、优化器和后端分离开来，
+前端负责将源代码转换为中间表示（ IR ），优化器负责对 IR 进行优化，
+后端负责将优化后的 IR 针对不同的目标平台生成目标代码。
+
+本课程设计实现的是 SysY 语言的前端，最终将 SysY 源代码转换为 LLVM IR 代码。
+LLVM 后端会根据不同的目标平台，进行指令优化、内存管理以及根据平台规范管理运行时环境。
+
+## 项目目标
+
+本课程设计项目目标支持含有以下特性的 SysY 语言程序的编译：
+
+-   `int` 类型的变量、常量与表达式
+-   常量编译期求值、作用域
+-   `if/else` 语句、`while/break/continue` 语句
+-   函数与全局变量
+-   数组与多维数组
+
+# 结构设计说明
+
+编译程序的整体编译过程如 @fig-compiler-flow 所示。
+
+```{mermaid}
+%%| label: fig-compiler-flow
+%%| fig-cap: 编译程序流程图
+flowchart TD
+    A((源代码))
+    B[/词法/语法分析/]
+    C[/语义分析/Koopa IR 生成/]
+    D[/LLVM IR 生成/]
+    E(((LLVM IR)))
+
+    A --> B
+    B -->|AST| C
+    C -->|Koopa IR| D
+    D --> E
+```
+
+生成 LLVM IR 后调用 LLVM 后端（ `clang` ）完成目标代码生成。
+
+## 各功能模块描述
+
+项目中根据 @fig-compiler-flow 所示的编译流程，结合所用编程语言（ Rust ）程序设计范式，
+进一步划分模块如 @fig-modules 所示。
+
+```{mermaid}
+%%| label: fig-modules
+%%| fig-cap: 模块依赖关系图
+flowchart TD
+    A([main.rs])
+    B([ast.rs])
+    C([gen/mod.rs])
+    CA([gen/scope.rs])
+    CB([gen/ir/mod.rs])
+    CBA([gen/ir/gen.rs])
+    CBB([gen/ir/eval.rs])
+    CBC([gen/ir/symbol_table.rs])
+
+    A --> B
+    A --> C
+    C --> CA
+    C --> CB
+    CB --> CBA
+    CB --> CBB
+    CB --> CBC
+```
+
+-   `main.rs`：主程序入口，负责解析命令行参数、读取源文件、调用词法/语法分析器、IR 生成器。
+
+-   `ast.rs`：抽象语法树（ AST ）模块，定义了 SysY 语言的抽象语法树结构。
+
+-   `gen/mod.rs`：代码生成模块，负责将 AST 转换为 Koopa IR 代码。
+
+    -   `scope.rs`：生成器内部层次信息，保存不同层次下语义分析与生成 IR 所需的信息。
+
+    -   `ir/mod.rs`：Koopa IR 生成模块，负责将 AST 转换为 Koopa IR 代码。
+
+        -   `gen/ir/gen.rs`：Koopa IR 生成器，负责生成 Koopa IR 代码。
+
+        -   `gen/ir/eval.rs`：常量表达式求值器，负责在编译期求值常量表达式。
+
+        -   `gen/ir/symbol_table.rs`：符号表模块，负责管理符号表。
+
+
+# 主要成分描述
+
+编译器前端设计中，主要的工作在于语言的 EBNF 描述设计、抽象语法树（ AST ）的设计、符号表管理与 IR 生成。
+
+## EBNF 语言描述与抽象语法树设计
+
+对于词法/语法的分析部分，
+本项目使用了 `lalrpop` 生成器生成的词法/语法分析器，
+通过定义语法描述文件，生成对应的词法/语法分析器。
+
+语法描述文件主要使用类似 EBNF 和 Rust 代码片段进行编写。
+EBNF 对语法规则进行无二义描述，生成的语法分析器会根据这些规则进行语法分析。
+Rust 代码片段附加在每一个语法规则后，作为 “ Action Code ”和编译器内部数据结构（AST）对接。
+
+通过设计抽象语法树（ AST ）结构，在语法描述文件中与词法/语法分析器对接，
+便可将源代码转换为 AST ，进而进行语义分析与 IR 生成。
+
+AST 是源代码的抽象表示，是编译器前端的核心数据结构。
+后续的语义分析工作与 IR 生成工作都是基于 AST 进行的。
+
+## 符号表
+
+符号表是编译器中用于存储变量、常量、函数等信息的数据结构。
+
+本项目中，为支持多层次的作用域，设计了多符号表结构，每个符号表对应一个作用域。
+在进入新的作用域时，会创建一个新的符号表，退出作用域时，会销毁当前符号表。
+
+作用域之间的关系，即符号表的增删符合后进先出（ LIFO ）的规则。
+因此，采用栈结构存储符号表，栈顶元素为当前作用域的符号表。
+查询符号时，从栈顶开始逐层向下查询，直到找到符号或查询到栈底。
+
+符号表存储符号名和与该符号相关的信息，查询时以符号名为键，返回符号信息，符合典型的表结构。
+代码生成时需要不断查表，因此符号表的查询效率对编译器性能有重要影响。
+本项目中，符号表采用 Rust 的 `std::collections::HashMap` 实现。
+
+## 语义分析与 IR 生成
+
+语义分析和 IR 生成关联紧密，都需要遍历 AST 。
+为了减少 AST 的遍历次数，故本项目将语义分析与 IR 生成耦合设计。
+
+语义分析过程中，会检查变量、常量、函数的定义与使用是否合法。
+具体地，通过维护符号表数据结构检查合法性。
+所有常量在编译期求值，将常量表达式转换为常量值，存入符号表。
+
+检查 AST 语义合法后，立即原地生成 Koopa IR 代码。
+
+根据 Rust 编程范式， AST 的结点类型不同。
+为了方便“递归”遍历 AST ，本项目采用 Rust 的 trait 特性（在其他编程语言中称为“接口”），
+定义了 `GenerateIR` 与 `EvaluateConst` 两个 trait ，
+分别用于 IR 生成与常量表达式求值。
+根据 AST 节点的不同目的，选择性实现这两个 trait ，从而实现 AST 的递归遍历。
+
+# 开发完成情况
+
+- [x] `int` 类型的变量、常量与表达式
+- [x] 常量编译期求值、作用域
+- [x] `if/else` 语句、`while/break/continue` 语句
+- [x] 函数与全局变量
+- [x] 数组与多维数组
+
+# 测试用例
+
+# 心得体会
+
+通过本次课程设计，我对编译原理的课程内容有了更深入的理解，
+更加深入地理解了编译器词法分析、语法分析、语义分析、代码生成等各个环节的工作原理。
+理论结合实践，让我对编译过程有了更加具体的认知。
+
+同时，课程设计也让我对 Rust 编程语言有了更深入的使用，
+学习到了在项目逐渐增长和复杂时，解决所有权和生命周期问题的方法。
+
+编译原理课程设计作为一个中型项目，对我的编程能力和软件工程的相关能力进行了进一步锻炼。
+
+# 参考文献 {.unnumbered}
+
+::: {#refs}
+:::
