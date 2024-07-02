@@ -23,6 +23,12 @@ fn main() -> Result<()> {
     args.next();
     let output = args.next().unwrap();
 
+    // print course information
+    print!("Student ID: 3121005231, Name: 王嘉宸\t");
+    let start_time = chrono::Local::now();
+    print!("Compile date: {}\n", start_time.format("%Y-%m-%d %H:%M:%S"));
+    println!("Compiling {} to {}...", input, output);
+
     let input = read_to_string(input)?; // read input file
 
     // parse the input
@@ -54,5 +60,17 @@ fn main() -> Result<()> {
 
     // write the output
     std::fs::write(output, text_from_ir)?;
+
+    println!("Compilation finished successfully!");
+    let end_time = chrono::Local::now();
+    let time_elapsed = end_time - start_time;
+    println!(
+        "Time elapsed: {}ms",
+        time_elapsed
+            .num_microseconds()
+            .map(|x| x as f64 / 1000.0)
+            .unwrap_or(time_elapsed.num_milliseconds() as f64)
+    );
+
     Ok(())
 }
